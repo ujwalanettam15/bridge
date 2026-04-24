@@ -1,14 +1,13 @@
 import { useState } from "react";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: "⊞" },
-  { id: "symbols",   label: "Symbol Board", icon: "🔤" },
-  { id: "parent",    label: "Parent View",  icon: "👁" },
-  { id: "sessions",  label: "Session Log",  icon: "📊" },
-  { id: "research",  label: "Research Portal", icon: "📖" },
+  { id: "parent",    label: "Live Session",  icon: "●" },
+  { id: "symbols",   label: "Voice Board", icon: "▦" },
+  { id: "research",  label: "Resources", icon: "?" },
+  { id: "sessions",  label: "History",  icon: "≡" },
 ];
 
-const AVATAR_COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+const AVATAR_COLORS = ["#2563eb", "#0f766e", "#ca8a04", "#dc2626", "#0369a1", "#047857"];
 
 function initials(name) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);

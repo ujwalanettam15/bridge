@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { api } from "../api";
 
+const TASKS = [
+  { id: "iep", label: "IEP request", description: "Draft school support language" },
+  { id: "appeal", label: "Insurance appeal", description: "Prepare a parent-review appeal" },
+  { id: "therapist", label: "Find therapist", description: "Search for AAC support nearby" },
+];
+
 function TinyfishResult({ result }) {
   if (!result) return null;
   // Tinyfish returns { status, task_id, result, steps, ... }
@@ -8,11 +14,13 @@ function TinyfishResult({ result }) {
   const detail = result.result ?? result.message ?? result.detail ?? JSON.stringify(result);
   const isSuccess = status === "completed" || status === "success";
   const isRunning = status === "running" || status === "pending";
+  const statusLabel = isSuccess ? "Completed" : isRunning ? "Agent running" : status;
 
   return (
     <div className={`tinyfish-result ${isSuccess ? "success" : isRunning ? "running" : "error"}`}>
       <div className="tf-status">
-        {isSuccess ? "✅ Completed" : isRunning ? "⏳ Agent Running" : "⚠️ " + status}
+        <span className="tf-status-dot" aria-hidden="true" />
+        {statusLabel}
       </div>
       {detail && <div className="tf-detail">{String(detail)}</div>}
       {result.task_id && (
@@ -33,6 +41,7 @@ function TinyfishResult({ result }) {
 }
 
 export default function ResearchPortal({ child }) {
+  const [activeTask, setActiveTask] = useState("iep");
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -119,20 +128,158 @@ export default function ResearchPortal({ child }) {
     }, 1200);
   }
 
+  function renderActiveTask() {
+    if (activeTask === "iep") {
+      return (
+        <div className="action-form-card">
+          <div className="action-form-header">
+            <h3>IEP request</h3>
+            <p>Draft language for parent review before anything is submitted.</p>
+          </div>
+          <form onSubmit={handleIep}>
+            <div className="form-field">
+              <label>Child Name</label>
+              <input
+                value={iepForm.childName}
+                onChange={e => setIepForm(f => ({ ...f, childName: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-field">
+              <label>School District</label>
+              <input
+                placeholder="e.g. Austin ISD"
+                value={iepForm.district}
+                onChange={e => setIepForm(f => ({ ...f, district: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Grade</label>
+                <input
+                  placeholder="e.g. 2nd"
+                  value={iepForm.grade}
+                  onChange={e => setIepForm(f => ({ ...f, grade: e.target.value }))}
+                />
+              </div>
+              <div className="form-field">
+                <label>Disability Category</label>
+                <input
+                  placeholder="e.g. Autism"
+                  value={iepForm.disability}
+                  onChange={e => setIepForm(f => ({ ...f, disability: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {iepLoading && (
+              <div className="agent-running">
+                <span className="pulse-dot" />
+                <span>Drafting request and checking next steps.</span>
+              </div>
+            )}
+            {iepResult && <TinyfishResult result={iepResult} />}
+            {iepError && <div className="form-error">{iepError}</div>}
+
+            <button type="submit" disabled={iepLoading} className="btn-action">
+              {iepLoading ? "Drafting..." : "Draft IEP Request"}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    if (activeTask === "appeal") {
+      return (
+        <div className="action-form-card">
+          <div className="action-form-header">
+            <h3>Insurance appeal</h3>
+            <p>Prepare a parent-review appeal draft for AAC support.</p>
+          </div>
+          <form onSubmit={handleAppeal}>
+            <div className="form-field">
+              <label>Insurance Provider</label>
+              <input
+                placeholder="e.g. Blue Cross Blue Shield"
+                value={appealForm.provider}
+                onChange={e => setAppealForm(f => ({ ...f, provider: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-field">
+              <label>Denial Reason</label>
+              <input
+                placeholder="e.g. Not medically necessary"
+                value={appealForm.reason}
+                onChange={e => setAppealForm(f => ({ ...f, reason: e.target.value }))}
+                required
+              />
+            </div>
+
+            {appealLoading && (
+              <div className="agent-running">
+                <span className="pulse-dot" />
+                <span>Drafting appeal language for parent review.</span>
+              </div>
+            )}
+            {appealResult && <TinyfishResult result={appealResult} />}
+            {appealError && <div className="form-error">{appealError}</div>}
+
+            <button type="submit" disabled={appealLoading} className="btn-action">
+              {appealLoading ? "Drafting..." : "Draft Appeal"}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    return (
+      <div className="action-form-card">
+        <div className="action-form-header">
+          <h3>Find therapist</h3>
+          <p>Look for AAC-informed therapy support near the family.</p>
+        </div>
+        <form onSubmit={handleTherapistSearch}>
+          <div className="form-field">
+            <label>ZIP Code</label>
+            <input
+              placeholder="e.g. 78701"
+              value={zipCode}
+              onChange={e => setZipCode(e.target.value)}
+              required
+            />
+          </div>
+          {therapistResult && therapistResult !== "searching" && (
+            <div className="form-success">{therapistResult}</div>
+          )}
+          {therapistResult === "searching" && (
+            <div className="agent-running">
+              <span className="pulse-dot" />
+              <span>Searching for AAC-certified therapists.</span>
+            </div>
+          )}
+          <button type="submit" className="btn-action">
+            Search Therapists
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="research-portal">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Research Portal</h1>
-          <p className="page-sub">AAC guidance, IEP tools, and insurance support</p>
+          <h1 className="page-title">Family Resources</h1>
+          <p className="page-sub">Ask questions, draft support requests, and keep parents in control.</p>
         </div>
       </div>
 
       <div className="research-columns">
-        {/* Chat */}
         <div className="research-chat-col">
           <div className="chat-card">
-            <h2 className="card-title">AAC Advocate Assistant</h2>
+            <h2 className="card-title">Ask a question</h2>
             <div className="chat-messages-area">
               {messages.map((m, i) => (
                 <div key={i} className={`chat-bubble ${m.role}`}>
@@ -166,137 +313,20 @@ export default function ResearchPortal({ child }) {
           </div>
         </div>
 
-        {/* Action forms */}
         <div className="research-actions-col">
-          {/* IEP */}
-          <div className="action-form-card">
-            <div className="action-form-header blue">
-              <span>📄</span>
-              <h3>File IEP Request</h3>
-            </div>
-            <form onSubmit={handleIep}>
-              <div className="form-field">
-                <label>Child Name</label>
-                <input
-                  value={iepForm.childName}
-                  onChange={e => setIepForm(f => ({ ...f, childName: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-field">
-                <label>School District</label>
-                <input
-                  placeholder="e.g. Austin ISD"
-                  value={iepForm.district}
-                  onChange={e => setIepForm(f => ({ ...f, district: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-field">
-                  <label>Grade</label>
-                  <input
-                    placeholder="e.g. 2nd"
-                    value={iepForm.grade}
-                    onChange={e => setIepForm(f => ({ ...f, grade: e.target.value }))}
-                  />
-                </div>
-                <div className="form-field">
-                  <label>Disability Category</label>
-                  <input
-                    placeholder="e.g. Autism"
-                    value={iepForm.disability}
-                    onChange={e => setIepForm(f => ({ ...f, disability: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              {iepLoading && (
-                <div className="agent-running">
-                  <span className="pulse-dot" />
-                  <span>Tinyfish agent is navigating the school district portal… this can take up to 2 minutes</span>
-                </div>
-              )}
-              {iepResult && <TinyfishResult result={iepResult} />}
-              {iepError && <div className="form-error">{iepError}</div>}
-
-              <button type="submit" disabled={iepLoading} className="btn-action blue">
-                {iepLoading ? "Agent Working..." : "Submit via Tinyfish Agent"}
+          <div className="task-picker">
+            {TASKS.map(task => (
+              <button
+                key={task.id}
+                className={`task-tile ${activeTask === task.id ? "active" : ""}`}
+                onClick={() => setActiveTask(task.id)}
+              >
+                <span>{task.label}</span>
+                <small>{task.description}</small>
               </button>
-            </form>
+            ))}
           </div>
-
-          {/* Insurance */}
-          <div className="action-form-card">
-            <div className="action-form-header orange">
-              <span>🛡</span>
-              <h3>Appeal Insurance Denial</h3>
-            </div>
-            <form onSubmit={handleAppeal}>
-              <div className="form-field">
-                <label>Insurance Provider</label>
-                <input
-                  placeholder="e.g. Blue Cross Blue Shield"
-                  value={appealForm.provider}
-                  onChange={e => setAppealForm(f => ({ ...f, provider: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-field">
-                <label>Denial Reason</label>
-                <input
-                  placeholder="e.g. Not medically necessary"
-                  value={appealForm.reason}
-                  onChange={e => setAppealForm(f => ({ ...f, reason: e.target.value }))}
-                  required
-                />
-              </div>
-
-              {appealLoading && (
-                <div className="agent-running">
-                  <span className="pulse-dot" />
-                  <span>Tinyfish agent is navigating the insurance portal… this can take up to 2 minutes</span>
-                </div>
-              )}
-              {appealResult && <TinyfishResult result={appealResult} />}
-              {appealError && <div className="form-error">{appealError}</div>}
-
-              <button type="submit" disabled={appealLoading} className="btn-action orange">
-                {appealLoading ? "Agent Working..." : "Submit Appeal"}
-              </button>
-            </form>
-          </div>
-
-          {/* Therapist */}
-          <div className="action-form-card">
-            <div className="action-form-header green">
-              <span>🧑‍⚕️</span>
-              <h3>Find Local Therapists</h3>
-            </div>
-            <form onSubmit={handleTherapistSearch} style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-              <div className="form-field">
-                <label>ZIP Code</label>
-                <input
-                  placeholder="e.g. 78701"
-                  value={zipCode}
-                  onChange={e => setZipCode(e.target.value)}
-                  required
-                />
-              </div>
-              {therapistResult && therapistResult !== "searching" && (
-                <div className="form-success">{therapistResult}</div>
-              )}
-              {therapistResult === "searching" && (
-                <div className="agent-running">
-                  <span className="pulse-dot" />
-                  <span>Searching for AAC-certified therapists...</span>
-                </div>
-              )}
-              <button type="submit" className="btn-action green">
-                Search Therapists
-              </button>
-            </form>
-          </div>
+          {renderActiveTask()}
         </div>
       </div>
     </div>

@@ -5,12 +5,12 @@ const SYMBOLS = [
   { emoji: "🍎", label: "Snack",    bg: "#fef2f2", color: "#ef4444" },
   { emoji: "💧", label: "Water",    bg: "#eff6ff", color: "#3b82f6" },
   { emoji: "🚽", label: "Bathroom", bg: "#fefce8", color: "#ca8a04" },
-  { emoji: "😴", label: "Tired",    bg: "#f5f3ff", color: "#7c3aed" },
+  { emoji: "😴", label: "Tired",    bg: "#eff6ff", color: "#1d4ed8" },
   { emoji: "🎮", label: "Play",     bg: "#f0fdf4", color: "#16a34a" },
   { emoji: "🤗", label: "Hug",      bg: "#fdf2f8", color: "#db2777" },
   { emoji: "🤕", label: "Hurt",     bg: "#fff1f2", color: "#e11d48" },
   { emoji: "😊", label: "Happy",    bg: "#fefce8", color: "#d97706" },
-  { emoji: "😢", label: "Sad",      bg: "#eff6ff", color: "#4f46e5" },
+  { emoji: "😢", label: "Sad",      bg: "#eff6ff", color: "#1d4ed8" },
   { emoji: "🎵", label: "Music",    bg: "#fdf4ff", color: "#9333ea" },
   { emoji: "🌳", label: "Outside",  bg: "#f0fdf4", color: "#15803d" },
   { emoji: "📺", label: "TV",       bg: "#f8fafc", color: "#475569" },
@@ -19,11 +19,26 @@ const SYMBOLS = [
   { emoji: "🆘", label: "Help",     bg: "#fef2f2", color: "#dc2626" },
   { emoji: "✅", label: "Yes",      bg: "#f0fdf4", color: "#10b981" },
   { emoji: "❌", label: "No",       bg: "#f8fafc", color: "#475569" },
-  { emoji: "⏸", label: "Break",    bg: "#eef2ff", color: "#4f46e5" },
+  { emoji: "⏸", label: "Break",    bg: "#eff6ff", color: "#1d4ed8" },
   { emoji: "🏁", label: "All Done", bg: "#ecfdf5", color: "#047857" },
   { emoji: "🔊", label: "Too Loud", bg: "#fff7ed", color: "#c2410c" },
   { emoji: "🔁", label: "Different", bg: "#f0f9ff", color: "#0369a1" },
   { emoji: "🩹", label: "Pain",     bg: "#fff1f2", color: "#be123c" },
+];
+
+const CORE_SYMBOLS = [
+  "Water",
+  "Snack",
+  "More",
+  "All Done",
+  "Help",
+  "Break",
+  "Bathroom",
+  "Pain",
+  "Too Loud",
+  "Stop",
+  "Yes",
+  "No",
 ];
 
 // Phrases spoken aloud for each symbol
@@ -66,6 +81,7 @@ export default function SymbolBoard({ child, sessionContext }) {
   const [speaking, setSpeaking] = useState(null);
   const [predictedSymbols, setPredictedSymbols] = useState([]);
   const [predicting, setPredicting] = useState(true);
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     setPredicting(true);
@@ -91,7 +107,6 @@ export default function SymbolBoard({ child, sessionContext }) {
     }, 1200);
   }
 
-  // Re-order symbols so AI-predicted ones show first with a highlight
   const predictedLabels = predictedSymbols.map(s => typeof s === "string" ? s : s.label);
   const symbolByLabel = Object.fromEntries(SYMBOLS.map(symbol => [symbol.label, symbol]));
   const suggestedSymbols = predictedSymbols
@@ -105,36 +120,28 @@ export default function SymbolBoard({ child, sessionContext }) {
     })
     .filter(item => item.label);
 
-  const orderedSymbols = predictedLabels.length > 0
-    ? [
-        ...SYMBOLS.filter(s => predictedLabels.includes(s.label)),
-        ...SYMBOLS.filter(s => !predictedLabels.includes(s.label)),
-      ]
-    : SYMBOLS;
+  const coreSymbols = CORE_SYMBOLS.map(label => symbolByLabel[label]).filter(Boolean);
+  const moreSymbols = SYMBOLS.filter(symbol => !CORE_SYMBOLS.includes(symbol.label));
 
   return (
     <div className="symbol-board-page">
-      <div className="camera-indicator-bar">
-        <span className="pulse-dot" />
+      <div className="voice-status-bar">
         <span className="camera-status-text">
-          {speaking ? `Speaking: "${PHRASES[speaking] || speaking}"` : `Detecting gestures for ${child.name}...`}
+          {speaking ? `Speaking: "${PHRASES[speaking] || speaking}"` : `Ready for ${child.name}`}
         </span>
         <span className="confidence-score">{sessionContext?.label || "Mealtime"} context</span>
         {predicting ? (
-          <span className="confidence-score">Loading AI suggestions...</span>
+          <span className="confidence-score">Loading suggestions...</span>
         ) : predictedLabels.length > 0 ? (
-          <span className="confidence-score" style={{ background: "#f0fdf4", color: "#15803d", borderColor: "#bbf7d0" }}>
-            ✨ {predictedLabels.length} symbols predicted for right now
-          </span>
+          <span className="confidence-score">{predictedLabels.length} suggested</span>
         ) : null}
       </div>
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">Symbol Board</h1>
+          <h1 className="page-title">Voice Board</h1>
           <p className="page-sub">
-            Tap a symbol to speak it aloud
-            {predictedLabels.length > 0 && " · AI-suggested symbols are shown first"}
+            Tap a symbol to speak it aloud.
           </p>
         </div>
       </div>
@@ -163,21 +170,37 @@ export default function SymbolBoard({ child, sessionContext }) {
       )}
 
       <div className="symbol-grid-4x4">
-        {orderedSymbols.map((symbol, i) => {
-          const isPredicted = predictedLabels.includes(symbol.label);
-          return (
+        {coreSymbols.map(symbol => (
             <button
               key={symbol.label}
-              className={`symbol-card ${selected === symbol.label ? "selected" : ""} ${isPredicted ? "predicted" : ""}`}
+              className={`symbol-card ${selected === symbol.label ? "selected" : ""}`}
               style={{ background: symbol.bg }}
               onClick={() => handleSelect(symbol)}
             >
-              {isPredicted && <span className="predicted-badge">✨</span>}
               <span className="symbol-emoji">{symbol.emoji}</span>
               <span className="symbol-label" style={{ color: symbol.color }}>{symbol.label}</span>
             </button>
-          );
-        })}
+        ))}
+      </div>
+
+      <div className="more-symbols">
+        <button className="btn-outline more-symbols-toggle" onClick={() => setShowMore(v => !v)}>
+          {showMore ? "Hide more symbols" : "More symbols"}
+        </button>
+        {showMore && (
+          <div className="more-symbol-grid">
+            {moreSymbols.map(symbol => (
+              <button
+                key={symbol.label}
+                className={`more-symbol-chip ${selected === symbol.label ? "selected" : ""}`}
+                onClick={() => handleSelect(symbol)}
+              >
+                <span>{symbol.emoji}</span>
+                <span>{symbol.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

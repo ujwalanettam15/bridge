@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, WS_BASE } from "../api";
 
 const CONTEXTS = [
-  { name: "mealtime", label: "Mealtime" },
+  { name: "mealtime", label: "Meal" },
   { name: "bedtime", label: "Bedtime" },
   { name: "school", label: "School" },
   { name: "therapy", label: "Therapy" },
@@ -171,16 +171,13 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
     <div className="parent-view">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Parent View</h1>
-          <p className="page-sub">Real-time intent suggestions for {child.name}</p>
+          <h1 className="page-title">Live Session</h1>
+          <p className="page-sub">Understand, confirm, and speak for {child.name}</p>
         </div>
       </div>
 
       <div className="context-strip">
-        <div>
-          <div className="context-label">Current context</div>
-          <div className="context-help">Bridge uses this to rank possible communication choices.</div>
-        </div>
+        <div className="context-label">Context</div>
         <div className="context-buttons">
           {CONTEXTS.map(context => (
             <button
@@ -198,34 +195,33 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
         <video ref={videoRef} muted playsInline className={active ? "" : "hidden"} />
         {!active && (
           <div className="camera-placeholder-overlay">
-            <span style={{ fontSize: 48 }}>📷</span>
-            <p>Camera off — start a session to detect gestures</p>
+            <p>Camera is off</p>
             <button className="btn-primary" onClick={startSession}>
-              Start Camera
+              Start Session
             </button>
           </div>
         )}
         <canvas ref={canvasRef} className="hidden" />
         {active && (
-          <button className="stop-btn" onClick={stopSession}>■ Stop</button>
+          <button className="stop-btn" onClick={stopSession}>Stop</button>
         )}
       </div>
 
       {error && <p className="error-msg">{error}</p>}
       {confirmed && (
-        <div className="success-msg">
-          Saved confirmation: {confirmed}. Bridge will use this pattern in future suggestions.
-        </div>
+        <div className="success-msg">Saved for future suggestions.</div>
       )}
 
       <div className="intent-heading">
-        <h2>Possible communication choices</h2>
+        <h2>Possible meaning</h2>
         <span className="last-updated">Last updated: {elapsed}s ago</span>
       </div>
 
       <div className="intent-rows">
-        {intents.map((intent, i) => (
-          <div key={i} className="intent-row-lg">
+        {intents.map((intent, i) => {
+          const isTop = i === 0;
+          return (
+          <div key={i} className={`intent-row-lg ${isTop ? "top-intent" : "secondary-intent"}`}>
             <div className="intent-row-top">
               <span className="intent-label-lg">{intent.label}</span>
               <span className="intent-pct-lg" style={{ color: BAR_COLORS[i] }}>
@@ -246,22 +242,22 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
             )}
             <div className="intent-actions">
               <button
-                className="btn-confirm"
-                onClick={() => handleConfirm(intent)}
-                disabled={confirming === intent.label}
-              >
-                {confirming === intent.label ? "Saving..." : "Confirm"}
-              </button>
-              <button
                 className="btn-speak"
                 onClick={() => handleSpeak(intent)}
                 disabled={speaking === intent.label}
               >
                 {speaking === intent.label ? "Speaking..." : "Speak"}
               </button>
+              <button
+                className="btn-confirm"
+                onClick={() => handleConfirm(intent)}
+                disabled={confirming === intent.label}
+              >
+                {confirming === intent.label ? "Saving..." : "Confirm"}
+              </button>
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
       <p className="safety-note">
