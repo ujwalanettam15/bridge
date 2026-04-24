@@ -27,7 +27,7 @@ Stack:
 - PostgreSQL via `app/core/database.py`
 - Redis pub/sub via `app/core/redis_client.py`
 - Alembic migration in `alembic/versions/001_initial.py`
-- MediaPipe, OpenAI, Whisper, Vapi, TinyFish, Nexla integration modules
+- MediaPipe, OpenRouter, Vapi, TinyFish, Nexla integration modules
 
 Implemented routers:
 
@@ -40,8 +40,8 @@ Implemented routers:
 Implemented ML/agent modules:
 
 - `mediapipe_processor.py`: extracts pose and hand landmarks from base64 frames
-- `audio_processor.py`: transcribes base64 audio with Whisper
-- `intent_reasoner.py`: sends gesture/audio/profile/context to GPT-4o for ranked intent JSON
+- `audio_processor.py`: optional audio transcript hook; currently no-ops until a speech-to-text provider is added
+- `intent_reasoner.py`: sends gesture/audio/profile/context to OpenRouter for ranked intent JSON
 - `symbol_predictor.py`: ranks likely AAC symbols from recent history and profile
 - `profile_updater.py`: updates a child's behavior profile after a confirmed intent
 - `journal_agent.py`: generates "Today I Felt" style parent journal summaries
@@ -84,7 +84,7 @@ Current local services:
 ### Current Demo-Relevant Strengths
 
 - The core app shape already matches the BridgeOS recommendation from `QnA.md`.
-- The repo already contains more than three sponsor stories: Vapi, Redis, TinyFish, Nexla, Chainguard, and OpenAI.
+- The repo already contains more than three sponsor stories: Vapi, Redis, TinyFish, Nexla, Chainguard, and OpenRouter-routed LLMs.
 - The live camera loop, symbol board, journal, and research portal create a coherent product demo.
 - The database schema already supports child profiles, sessions, and intent logs.
 - The backend already has the "learn from parent confirmation" concept through `/actions/confirm-intent`.
@@ -101,7 +101,7 @@ Current local services:
 - Vapi integration uses a likely placeholder voice ID (`child-default`) and may need event-specific Vapi setup.
 - TinyFish and Nexla calls are written as real integrations, but the exact event API contracts may differ.
 - There is no polished 3-minute demo script or judge-facing architecture section in the app.
-- There are minimal tests, and the existing `test_intent_reasoner.py` comment references Anthropic even though the code uses OpenAI.
+- There are minimal tests, and the LLM layer should stay provider-flexible through OpenRouter instead of direct model-provider wiring.
 
 ## 3. What The Research And QnA Recommend
 
@@ -139,7 +139,42 @@ The recommended sponsor stack:
 - Nexla: optional therapist/school data sync
 - InsForge: optional backend/auth speed layer if easy
 
-The repo currently includes Vapi, Redis, TinyFish, Nexla, and Chainguard. It does not currently include WunderGraph, TigerData/Ghost, or InsForge.
+The repo currently includes Vapi, Redis, TinyFish, Nexla, Chainguard, and an OpenRouter-based LLM layer. It does not currently include WunderGraph, TigerData/Ghost, or InsForge.
+
+## 3.1 OpenRouter LLM Plan
+
+Bridge should use OpenRouter instead of direct OpenAI billing. Context7 confirms OpenRouter exposes an OpenAI-compatible chat completions API at:
+
+> `https://openrouter.ai/api/v1`
+
+The backend should keep using the `openai` Python package only as a compatible transport client, not as a direct OpenAI account dependency. Required env:
+
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL`
+- `OPENROUTER_BASE_URL`
+- `OPENROUTER_REFERER`
+- `OPENROUTER_TITLE`
+
+Default model:
+
+- `openrouter/free`
+
+Reason:
+
+- Context7 documents `openrouter/free` as OpenRouter's free-model router.
+- The exact backing free model can change, so the model must remain configurable.
+- If a specific model is needed for JSON reliability, set `OPENROUTER_MODEL` to that model ID during demo prep.
+
+OpenRouter-backed features:
+
+- Intent reasoning
+- Symbol prediction
+- Daily journal generation
+- Research/IEP guidance Q&A
+
+Not covered by OpenRouter:
+
+- Speech-to-text transcription. The current audio processor should remain optional/no-op until a separate STT provider is chosen.
 
 ## 4. Product Decision
 
@@ -217,13 +252,14 @@ Tasks:
   - Backend prompt currently returns `probability`.
   - Frontend currently reads `confidence`.
   - Pick one field name and support both defensively in the UI.
-- Add graceful fallback behavior when OpenAI, Vapi, TinyFish, or Redis are missing.
+- Add graceful fallback behavior when OpenRouter, Vapi, TinyFish, or Redis are missing.
   - For hackathon demo, the app should never hard-crash because one key is absent.
   - Show "demo mode" results where appropriate.
 - Make startup instructions match reality.
   - README should state the same backend port that the frontend uses.
   - Add exact run commands for database, backend, and frontend.
 - Run the frontend build and at least one backend smoke test.
+- Route all LLM calls through `app/core/llm_client.py` so changing OpenRouter models is an env-only change.
 
 Acceptance criteria:
 
@@ -397,7 +433,7 @@ Already present:
 - TinyFish
 - Nexla
 - Chainguard
-- OpenAI
+- OpenRouter-routed LLMs
 
 Potential additions:
 
@@ -415,7 +451,7 @@ Recommendation:
   - TinyFish handles resource/IEP/insurance web tasks.
   - Nexla syncs therapy summaries.
   - Chainguard secures deployment.
-  - OpenAI powers intent reasoning, symbol ranking, journal, and research guidance.
+  - OpenRouter powers intent reasoning, symbol ranking, journal, and research guidance while keeping model choice and cost flexible.
 
 ### Phase 7: Safety, Trust, And Wording
 
@@ -451,7 +487,7 @@ Tasks:
   - Frontend
   - FastAPI
   - MediaPipe
-  - OpenAI
+  - OpenRouter
   - Redis
   - PostgreSQL
   - Vapi
