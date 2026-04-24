@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm.attributes import flag_modified
 from datetime import datetime
 import time
 import uuid
@@ -181,7 +182,7 @@ def _voice_update_text(child: Child, run: AgentRun) -> str:
 
 
 def _teacher_update_packet(child: Child, run: AgentRun) -> dict:
-    draft = run.draft or {}
+    draft = dict(run.draft or {})
     return {
         "child_name": child.name,
         "agent_run_id": run.id,
@@ -209,6 +210,7 @@ async def _finalize_teacher_replay(child: Child, run: AgentRun, contact: dict, c
     run.draft = draft
     run.status = "report_ready"
     run.updated_at = datetime.utcnow()
+    flag_modified(run, "draft")
     db.add(run)
     db.commit()
     db.refresh(run)
@@ -468,9 +470,9 @@ async def request_teacher_update(payload: TeacherUpdateRequest, db=Depends(get_d
             TEACHER_UPDATE_QUESTIONS,
             run.id,
         )
-    sponsor_statuses = run.sponsor_statuses or {}
+    sponsor_statuses = dict(run.sponsor_statuses or {})
     sponsor_statuses["vapi_teacher"] = vapi_result
-    draft = run.draft or {}
+    draft = dict(run.draft or {})
     draft["vapi_call_id"] = vapi_result.get("call_id") or (vapi_result.get("vapi_response") or {}).get("id")
     draft["call_status"] = vapi_result.get("status", "prepared")
     draft["call_payload"] = vapi_result.get("call_payload")
@@ -478,6 +480,8 @@ async def request_teacher_update(payload: TeacherUpdateRequest, db=Depends(get_d
     run.draft = draft
     run.status = "call_queued" if vapi_result.get("status") in {"queued", "ringing", "in-progress"} else "transcript_replay"
     run.updated_at = datetime.utcnow()
+    flag_modified(run, "sponsor_statuses")
+    flag_modified(run, "draft")
     db.add(run)
     db.commit()
     db.refresh(run)

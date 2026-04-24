@@ -2,6 +2,7 @@ from datetime import datetime
 import time
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.agents.teacher_update_agent import persist_teacher_evidence, teacher_report_from_messages
 from app.core.agent_events import publish_agent_event
@@ -104,7 +105,7 @@ async def vapi_webhook(payload: dict, db=Depends(get_db)):
     if not child:
         return {"status": "ignored", "reason": "Child not found"}
 
-    draft = run.draft or {}
+    draft = dict(run.draft or {})
     webhook_events = draft.get("webhook_events") or []
     webhook_events.append({
         "type": message_type,
@@ -139,6 +140,7 @@ async def vapi_webhook(payload: dict, db=Depends(get_db)):
 
     run.draft = draft
     run.updated_at = datetime.utcnow()
+    flag_modified(run, "draft")
     db.add(run)
     db.commit()
     pgmq_send("bridge_agent_events", {
