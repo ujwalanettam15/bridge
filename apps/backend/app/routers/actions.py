@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
+import time
 import uuid
 
 from app.integrations import vapi, tinyfish, nexla
+from app.integrations.ghost import pgmq_send, fork_for_agent_run, delete_fork
 from app.models import AgentRun, Child, Session, IntentLog
 from app.core.database import get_db
 from app.core.agent_events import get_recent_agent_events, publish_agent_event
@@ -160,9 +162,23 @@ async def run_iep_agent(payload: IEPAgentRunRequest, db=Depends(get_db)):
     if not child:
         raise HTTPException(status_code=404, detail="Child not found")
 
+    run_label = f"{child.id[:8]}-{int(time.time())}"
+
+    # Fork the Ghost database so the agent drafts in a safe sandbox
+    fork_info = await fork_for_agent_run(run_label)
+
     pattern = _pattern_summary(child.id, db)
     await publish_agent_event(child.id, "agent_started", "Care Agent started AAC/IEP packet run.")
     await publish_agent_event(child.id, "history_loaded", "Confirmed communication history loaded.", pattern)
+
+    # Publish agent start event to the Ghost DB-backed queue (alongside Redis)
+    pgmq_send("bridge_agent_events", {
+        "event": "agent_run_started",
+        "child_id": child.id,
+        "run_label": run_label,
+        "fork": fork_info,
+        "ts": time.time(),
+    })
 
     result = await tinyfish.run_iep_agent(
         {
@@ -201,9 +217,11 @@ async def run_iep_agent(payload: IEPAgentRunRequest, db=Depends(get_db)):
                 "message": "Care Agent events published to live memory stream.",
             },
             "ghost": {
-                "status": "audit_saved",
-                "provider": "Ghost/Postgres",
-                "message": "Agent run saved to the configured DATABASE_URL audit table.",
+                "status": "active",
+                "provider": "Ghost/TigerData",
+                "role": "audit store + DB-backed event queue + database fork",
+                "message": "Agent run audited in Ghost DB · durable queue active · DB forked for safe draft.",
+                "fork": fork_info,
             },
         },
         approvals={},
@@ -211,6 +229,19 @@ async def run_iep_agent(payload: IEPAgentRunRequest, db=Depends(get_db)):
     db.add(run)
     db.commit()
     db.refresh(run)
+
+    # Publish completion event to the Ghost DB-backed queue
+    pgmq_send("bridge_agent_events", {
+        "event": "agent_run_completed",
+        "agent_run_id": run.id,
+        "run_label": run_label,
+        "ts": time.time(),
+    })
+
+    # Clean up the fork now that the run succeeded
+    if fork_info.get("status") == "created":
+        await delete_fork(fork_info["fork_name"])
+
     await publish_agent_event(child.id, "approval_required", "Packet is ready and waiting for parent approval.", {"agent_run_id": run.id})
 
     return {
@@ -355,8 +386,9 @@ async def approve_care_followup(payload: ApproveCareFollowupRequest, db=Depends(
         raise HTTPException(status_code=400, detail="Unsupported followup_type")
 
     approvals = run.approvals or {}
+    approved_at = datetime.utcnow().isoformat()
     approvals[payload.followup_type] = {
-        "approved_at": datetime.utcnow().isoformat(),
+        "approved_at": approved_at,
         "result": result,
     }
     sponsor_statuses = run.sponsor_statuses or {}
@@ -366,6 +398,17 @@ async def approve_care_followup(payload: ApproveCareFollowupRequest, db=Depends(
     run.updated_at = datetime.utcnow()
     db.add(run)
     db.commit()
+
+    # Publish approval event to the Ghost DB-backed queue (mirrors Redis publish below)
+    pgmq_send("bridge_care_actions", {
+        "event": payload.followup_type,
+        "agent_run_id": run.id,
+        "child_id": child.id,
+        "approved_at": approved_at,
+        "status": result.get("status"),
+        "ts": time.time(),
+    })
+
     await publish_agent_event(child.id, event_type, result.get("message", f"{payload.followup_type} complete."), {"status": result.get("status")})
     return {
         "status": result.get("status", "complete"),

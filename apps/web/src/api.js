@@ -125,6 +125,12 @@ export const api = {
   getAgentEvents: (childId) =>
     fetch(`${BASE}/actions/agent-events/${childId}`).then(asJson),
 
+  getGhostStatus: () =>
+    fetch(`${BASE}/ghost/status`).then(asJson),
+
+  getGhostEvents: (limit = 20, queue = "bridge_agent_events") =>
+    fetch(`${BASE}/ghost/events?limit=${limit}&queue=${encodeURIComponent(queue)}`).then(asJson),
+
   generateTherapistSummary: (childId) =>
     fetch(`${BASE}/actions/therapist-summary/${childId}`).then(asJson),
 

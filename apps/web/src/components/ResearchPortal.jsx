@@ -114,7 +114,7 @@ function pipelineStatus(status, fallback = "waiting") {
   return typeof status === "string" ? status : status.status || fallback;
 }
 
-function SponsorPipeline({ statuses, approvals, events, result, demoHighlight }) {
+function SponsorPipeline({ statuses, approvals, events, result, ghostStatus, demoHighlight }) {
   const lastEvent = events?.[0]?.message || "Waiting for agent event";
   const rows = [
     {
@@ -133,10 +133,16 @@ function SponsorPipeline({ statuses, approvals, events, result, demoHighlight })
     },
     {
       key: "ghost",
-      name: "Ghost/Postgres",
-      action: "Audit DB",
-      status: result?.agent_run_id ? "audit saved" : "waiting",
-      detail: result?.agent_run_id ? `AgentRun ${result.agent_run_id}` : "Stores sources, draft, approvals, and sponsor results.",
+      name: "Ghost / TigerData",
+      action: "Audit DB · durable queue · DB fork",
+      status: result?.agent_run_id
+        ? statuses?.ghost?.fork?.status === "created" ? "fork created → cleaned" : "audit saved"
+        : ghostStatus?.status === "connected" ? "connected" : ghostStatus?.status ?? "waiting",
+      detail: result?.agent_run_id
+        ? `AgentRun ${result.agent_run_id} · Ghost durable queue active`
+        : ghostStatus?.status === "connected"
+          ? `${ghostStatus.database} · ${ghostStatus.compute_hours_used ?? "–"}h used`
+          : "Stores audit records, publishes Ghost DB queue events, forks DB per agent run.",
     },
     {
       key: "nexla",
@@ -290,13 +296,23 @@ function TechnicalTrace({ result, approvals, events, demoHighlight }) {
   );
 }
 
-function SponsorStatus({ statuses, approvals }) {
+function SponsorStatus({ statuses, approvals, ghostStatus }) {
+  const ghostDetail = (() => {
+    if (statuses?.ghost?.message) return statuses.ghost.message;
+    if (ghostStatus?.status === "connected") {
+      const hours = ghostStatus.compute_hours_used != null ? `${ghostStatus.compute_hours_used}h used` : "";
+      return `${ghostStatus.database}${hours ? " · " + hours : ""} · durable queue active · DB fork per run`;
+    }
+    if (ghostStatus?.status === "demo_mode") return "Demo mode — audit records in local Postgres · DB queue events published";
+    return "Agent audit stored in Ghost DB · durable event queue · database fork per run.";
+  })();
+
   const rows = [
     ["Redis", statuses?.redis?.status || "ready", statuses?.redis?.message || "Live agent memory publishes session and care-agent events."],
     ["TinyFish", statuses?.tinyfish?.status || "ready", statuses?.tinyfish?.message || "Ready to extract source facts."],
     ["Nexla Express", statuses?.nexla?.status || approvals?.nexla_sync?.result?.status || "awaiting approval", statuses?.nexla?.message || approvals?.nexla_sync?.result?.message || "Incoming Webhook delivery waits for parent approval."],
     ["Vapi", statuses?.vapi?.status || approvals?.vapi_update?.result?.status || "awaiting approval", statuses?.vapi?.message || approvals?.vapi_update?.result?.message || "Care-team voice update waits for parent approval."],
-    ["Ghost", statuses?.ghost?.status || "audit saved", statuses?.ghost?.message || "Agent audit is stored in the configured DATABASE_URL."],
+    ["Ghost / TigerData", statuses?.ghost?.status || ghostStatus?.status || "audit saved", ghostDetail],
   ];
   return (
     <section className="care-section">
@@ -352,12 +368,17 @@ export default function ResearchPortal({ child, demoCommand, demoHighlight = "" 
   const [approvals, setApprovals] = useState({});
   const [approving, setApproving] = useState("");
   const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [ghostStatus, setGhostStatus] = useState(null);
 
   function refreshEvents() {
     api.getAgentEvents(child.id)
       .then(res => setEvents(res.events || []))
       .catch(() => {});
   }
+
+  useEffect(() => {
+    api.getGhostStatus().then(setGhostStatus).catch(() => {});
+  }, []);
 
   useEffect(() => {
     refreshEvents();
@@ -486,6 +507,7 @@ export default function ResearchPortal({ child, demoCommand, demoHighlight = "" 
             approvals={approvals}
             events={events}
             result={result}
+            ghostStatus={ghostStatus}
             demoHighlight={demoHighlight}
           />
 
@@ -565,7 +587,7 @@ export default function ResearchPortal({ child, demoCommand, demoHighlight = "" 
               </section>
 
               <div className={demoHighlight === "sponsors" ? "demo-highlight" : ""}>
-                <SponsorStatus statuses={statuses} approvals={approvals} />
+                <SponsorStatus statuses={statuses} approvals={approvals} ghostStatus={ghostStatus} />
               </div>
             </>
           )}
