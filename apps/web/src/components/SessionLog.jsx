@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 
 function topIntent(log) {
@@ -29,20 +29,20 @@ function confidenceColor(conf) {
 function NexlaSyncStatus({ result }) {
   if (!result) return null;
 
-  const isDemo = result.status === "demo_mode";
+  const isPrepared = result.status === "demo_mode" || result.status === "prepared";
   const isSynced = result.status === "synced";
   const isError = result.status === "error";
 
   return (
-    <div className={`nexla-sync-status ${isDemo ? "demo" : isSynced ? "synced" : "error"}`}>
+    <div className={`nexla-sync-status ${isPrepared ? "demo" : isSynced ? "synced" : "error"}`}>
       <div className="nexla-sync-header">
         <span className="nexla-badge">Nexla</span>
         <span className="nexla-sync-label">
-          {isSynced ? "Summary synced" : isDemo ? "Demo mode" : "Sync failed"}
+          {isSynced ? "Summary synced" : isPrepared ? "Payload ready" : "Sync failed"}
         </span>
       </div>
       <p className="nexla-sync-message">{result.message}</p>
-      {isDemo && result.next_steps?.length > 0 && (
+      {isPrepared && result.next_steps?.length > 0 && (
         <details className="nexla-next-steps">
           <summary>How to enable live sync</summary>
           <ol>
@@ -179,6 +179,7 @@ export default function SessionLog({ child, onNavigate, demoHighlight = "" }) {
 
   const [journal, setJournal] = useState(null);
   const [journalLoading, setJournalLoading] = useState(false);
+  const journalRequestRef = useRef(null);
 
   const [therapistSummary, setTherapistSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -197,11 +198,17 @@ export default function SessionLog({ child, onNavigate, demoHighlight = "" }) {
   }, [child.id]);
 
   const fetchJournal = useCallback(() => {
+    if (journalRequestRef.current) return journalRequestRef.current;
     setJournalLoading(true);
-    api.getJournal(child.id)
+    const request = api.getJournal(child.id)
       .then(result => setJournal(result.journal || null))
       .catch(() => setJournal(null))
-      .finally(() => setJournalLoading(false));
+      .finally(() => {
+        journalRequestRef.current = null;
+        setJournalLoading(false);
+      });
+    journalRequestRef.current = request;
+    return request;
   }, [child.id]);
 
   useEffect(() => {
@@ -277,15 +284,22 @@ export default function SessionLog({ child, onNavigate, demoHighlight = "" }) {
     });
     const mostUsed = Object.entries(confirmedCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "None yet";
 
-    const water = confirmed.filter(l => /water/i.test(l.confirmed_label)).length;
-    const help = confirmed.filter(l => /help/i.test(l.confirmed_label)).length;
+    const hat = confirmed.filter(l => /hat/i.test(l.confirmed_label)).length;
+    const meal = confirmed.filter(l => {
+      const ctx = `${l.context?.label || ""} ${l.context?.name || ""}`;
+      return /meal/i.test(ctx);
+    }).length;
+    const transitionRelated = confirmed.filter(l => {
+      const ctx = `${l.context?.label || ""} ${l.context?.name || ""}`;
+      return /transition|drop-off/i.test(ctx) || /break|hat/i.test(l.confirmed_label || "");
+    }).length;
     const contextCounts = {};
     confirmed.forEach(l => {
       const ctx = l.context?.label || l.context?.name || "Session";
       contextCounts[ctx] = (contextCounts[ctx] || 0) + 1;
     });
     const topContext = Object.entries(contextCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "None yet";
-    return { todayCount: todayLogs.length, topToday, mostUsed, recentPatterns: recentConfirmed.length, confirmedCount: confirmed.length, water, help, topContext };
+    return { todayCount: todayLogs.length, topToday, mostUsed, recentPatterns: recentConfirmed.length, confirmedCount: confirmed.length, hat, meal, transitionRelated, topContext };
   }, [logs]);
 
   return (
@@ -304,24 +318,24 @@ export default function SessionLog({ child, onNavigate, demoHighlight = "" }) {
           <span className="history-sub">confirmed moments</span>
         </div>
         <div>
-          <span className="history-kicker">Water requests</span>
-          <strong>{summary.water}</strong>
+          <span className="history-kicker">Meal moments</span>
+          <strong>{summary.meal}</strong>
         </div>
         <div>
-          <span className="history-kicker">Help requests</span>
-          <strong>{summary.help}</strong>
+          <span className="history-kicker">Comfort item</span>
+          <strong>{summary.hat}</strong>
         </div>
         <div>
-          <span className="history-kicker">Common context</span>
-          <strong>{summary.topContext}</strong>
+          <span className="history-kicker">Transitions</span>
+          <strong>{summary.transitionRelated}</strong>
         </div>
       </section>
 
       <section className={`pattern-detected-card ${demoHighlight === "timeline_pattern" ? "demo-highlight" : ""}`}>
         <div>
           <span className="history-kicker">Pattern detected</span>
-          <h2>Repeated communication access needs during daily routines.</h2>
-          <p>Bridge turns daily caregiving moments into structured evidence for school and therapy conversations.</p>
+          <h2>Communication supports reduce frustration during meals, transitions, and work demands.</h2>
+          <p>Bridge turns varied parent-confirmed moments into structured evidence for AAC/assistive technology review and shared home-school supports.</p>
         </div>
         <button className="btn-action" onClick={() => onNavigate?.("research")}>
           Draft AAC/IEP Support Packet

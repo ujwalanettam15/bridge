@@ -33,7 +33,16 @@ def _best_contour_detection(mask, label: str, frame_w: int, frame_h: int, *, col
             # Best demo prop: gray/silver bottle held upright in frame.
             if aspect < 1.25 or aspect > 8:
                 continue
-            if width_ratio > 0.34 or height_ratio > 0.88 or height_ratio < 0.12:
+            if width_ratio > 0.22 or height_ratio > 0.95 or height_ratio < 0.12:
+                continue
+            if w > 78:
+                continue
+            center_x = (x + w / 2) / frame_w
+            if center_x < 0.08 or (color.startswith("gray") and center_x > 0.64) or center_x > 0.88:
+                continue
+            # Tall window/door edges usually touch the top/bottom of the frame;
+            # handheld bottles should have some visible margin.
+            if y < frame_h * 0.04 and y + h > frame_h * 0.72:
                 continue
             confidence = min(0.94, 0.58 + area / (frame_area * 0.12) + min(aspect, 3.0) * 0.06)
         else:
@@ -88,6 +97,8 @@ def _best_edge_bottle_detection(frame, frame_w: int, frame_h: int):
             continue
         if not (0.035 <= width_ratio <= 0.28 and 0.16 <= height_ratio <= 0.82):
             continue
+        if x_center < 0.08 or x_center > 0.64:
+            continue
         if y < frame_h * 0.04 or y > frame_h * 0.86:
             continue
 
@@ -135,7 +146,7 @@ async def detect_objects(frame_b64: str) -> list[dict]:
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
     blue_mask = cv2.inRange(hsv, (88, 45, 35), (135, 255, 255))
-    gray_mask = cv2.inRange(hsv, (0, 0, 35), (180, 75, 235))
+    gray_mask = cv2.inRange(hsv, (0, 0, 35), (180, 85, 205))
 
     red_mask_a = cv2.inRange(hsv, (0, 60, 45), (12, 255, 255))
     red_mask_b = cv2.inRange(hsv, (168, 60, 45), (180, 255, 255))
@@ -149,10 +160,11 @@ async def detect_objects(frame_b64: str) -> list[dict]:
     dark_mask = cv2.bitwise_and(dark_mask, top_gate)
 
     kernel = np.ones((5, 5), np.uint8)
+    tall_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 9))
     blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_OPEN, kernel)
     blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_CLOSE, kernel)
     gray_mask = cv2.morphologyEx(gray_mask, cv2.MORPH_OPEN, kernel)
-    gray_mask = cv2.morphologyEx(gray_mask, cv2.MORPH_CLOSE, kernel)
+    gray_mask = cv2.morphologyEx(gray_mask, cv2.MORPH_CLOSE, tall_kernel)
     red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
     red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, kernel)
     dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_OPEN, kernel)

@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 from functools import lru_cache
 
 import httpx
@@ -44,6 +45,11 @@ def _db_name() -> str:
     return os.getenv("GHOST_DATABASE_NAME", "bridge-prod")
 
 
+def _forks_enabled() -> bool:
+    _ensure_ghost_env_loaded()
+    return os.getenv("GHOST_ENABLE_FORKS", "").lower() in {"1", "true", "yes", "on"}
+
+
 def _queue_timestamp_sql() -> str:
     return "NOW()" if engine.dialect.name == "postgresql" else "CURRENT_TIMESTAMP"
 
@@ -53,6 +59,13 @@ def _validate_queue_name(queue: str) -> bool:
         return True
     logger.warning("Unknown Ghost queue requested: %s", queue)
     return False
+
+
+def _ghost_cli() -> str:
+    cmd = shutil.which("ghost") or shutil.which("ghost.cmd")
+    if not cmd:
+        raise RuntimeError("ghost CLI not installed or not on PATH")
+    return cmd
 
 
 def _decode_message(raw: object) -> dict:
@@ -121,22 +134,22 @@ def init_pgmq() -> None:
 async def get_ghost_status() -> dict:
     """
     Call Ghost REST API to get space usage info.
-    Falls back gracefully when GHOST_API_KEY is absent (demo-mode).
+    Falls back gracefully when GHOST_API_KEY is absent.
     """
     api_key = _api_key()
     db_name = _db_name()
 
     if not api_key:
         return {
-            "status": "demo_mode",
-            "message": "GHOST_API_KEY not configured — using local Postgres fallback",
+            "status": "prepared",
+            "message": "Ghost API key is not configured; audit records and durable queue use the configured DATABASE_URL.",
             "database": db_name,
             "features": ["db_queue", "audit_store", "database_fork"],
         }
 
     async def status_via_cli() -> dict:
         proc = await asyncio.create_subprocess_exec(
-            "ghost",
+            _ghost_cli(),
             "status",
             "--json",
             stdout=asyncio.subprocess.PIPE,
@@ -303,7 +316,7 @@ async def _fork_via_cli(run_label: str) -> dict:
     fork_name = f"bridge-agent-{run_label}"
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ghost",
+            _ghost_cli(),
             "fork",
             db_name,
             "--name",
@@ -335,8 +348,10 @@ async def fork_for_agent_run(run_label: str) -> dict:
     If something goes wrong, the fork is preserved for inspection.
     Tries REST API first, falls back to CLI, skips gracefully with no key.
     """
+    if not _forks_enabled():
+        return {"status": "prepared", "reason": "GHOST_ENABLE_FORKS is not enabled"}
     if not _api_key():
-        return {"status": "skipped", "reason": "GHOST_API_KEY not set"}
+        return {"status": "prepared", "reason": "GHOST_API_KEY not set"}
     try:
         return await _fork_via_rest(run_label)
     except Exception as rest_exc:
@@ -345,7 +360,7 @@ async def fork_for_agent_run(run_label: str) -> dict:
             return await _fork_via_cli(run_label)
         except Exception as cli_exc:
             logger.warning("Ghost CLI fork also failed: %s", cli_exc)
-            return {"status": "skipped", "reason": str(cli_exc)}
+            return {"status": "prepared", "reason": str(cli_exc)}
 
 
 async def delete_fork(fork_name: str) -> bool:

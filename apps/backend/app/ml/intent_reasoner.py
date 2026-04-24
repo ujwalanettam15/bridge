@@ -36,36 +36,36 @@ def _normalize_scores(intents: list[dict]) -> list[dict]:
 
 def _boost_visual_intents(intents: list[dict], detected_objects: list[dict] | None) -> list[dict]:
     objects = detected_objects or []
-    has_water = any(obj.get("label") == "water bottle" for obj in objects)
-    has_hat = any(obj.get("label") == "hat" for obj in objects)
+    water_confidence = max((float(obj.get("confidence", 0)) for obj in objects if obj.get("label") == "water bottle"), default=0)
+    hat_confidence = max((float(obj.get("confidence", 0)) for obj in objects if obj.get("label") == "hat"), default=0)
 
-    if has_water:
+    if water_confidence:
         matched = False
         for intent in intents:
             if "water" in intent["label"].lower():
-                intent["confidence"] += 0.28
+                intent["confidence"] += 0.35 + water_confidence * 1.1
                 intent["explanation"] += " Visual detector sees a water bottle in frame."
                 matched = True
         if not matched:
             intents.append({
                 "label": "I want water",
-                "confidence": 0.55,
+                "confidence": 0.65 + water_confidence * 1.2,
                 "explanation": "Visual detector sees a water bottle in frame.",
             })
 
-    if has_hat:
+    if hat_confidence:
         matched = False
         for intent in intents:
             label = intent["label"].lower()
             if "hat" in label or "outside" in label:
-                intent["confidence"] += 0.26
-                intent["explanation"] += " Visual detector sees a hat in frame."
+                intent["confidence"] += 0.5 + hat_confidence * 1.8
+                intent["explanation"] += " Visual detector sees a hat in frame. Maya's profile treats hat access as a comfort-item cue, especially around meals and transitions."
                 matched = True
         if not matched:
             intents.append({
                 "label": "I want my hat",
-                "confidence": 0.52,
-                "explanation": "Visual detector sees a hat in frame, which can support a hat or going-out request.",
+                "confidence": 0.8 + hat_confidence * 2.0,
+                "explanation": "Visual detector sees a hat in frame. Maya's profile treats hat access as a comfort-item cue, especially around meals and transitions.",
             })
 
     return intents
@@ -126,8 +126,15 @@ def normalize_intents(result: dict) -> dict:
     return {**result, "intents": normalized}
 
 
-async def classify_intent(gesture: dict, audio: dict, child: Child, context: dict, detected_objects: list[dict] | None = None) -> dict:
-    if not llm_configured():
+async def classify_intent(
+    gesture: dict,
+    audio: dict,
+    child: Child,
+    context: dict,
+    detected_objects: list[dict] | None = None,
+    use_llm: bool = True,
+) -> dict:
+    if not use_llm or not llm_configured():
         return _demo_intents(context, gesture, child, detected_objects)
 
     user_message = f"""
@@ -162,6 +169,13 @@ What is this child most likely communicating?"""
     except Exception:
         return _demo_intents(context, gesture, child, detected_objects)
 
-    result = normalize_intents(json.loads(response.choices[0].message.content))
+    try:
+        content = response.choices[0].message.content
+        if not content:
+            return _demo_intents(context, gesture, child, detected_objects)
+        result = normalize_intents(json.loads(content))
+    except Exception:
+        return _demo_intents(context, gesture, child, detected_objects)
+
     result["intents"] = _normalize_scores(_boost_visual_intents(result["intents"], detected_objects))[:4]
     return result

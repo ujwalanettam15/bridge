@@ -110,6 +110,16 @@ export const api = {
       }),
     }).then(asJson),
 
+  requestTeacherUpdate: (childId, payload = {}) =>
+    fetch(`${BASE}/actions/request-teacher-update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ child_id: childId, ...payload }),
+    }).then(asJson),
+
+  getTeacherUpdates: (childId) =>
+    fetch(`${BASE}/actions/teacher-updates/${childId}`).then(asJson),
+
   demoConfirmIntent: (childId, confirmedLabel, context = {}, confidence = 0.74) =>
     fetch(`${BASE}/actions/demo-confirm-intent`, {
       method: "POST",

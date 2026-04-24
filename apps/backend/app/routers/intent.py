@@ -32,7 +32,14 @@ async def infer_intent(payload: InferRequest, db=Depends(get_db)):
     if not child:
         raise HTTPException(status_code=404, detail="Child not found")
 
-    result = await intent_reasoner.classify_intent(gesture, audio, child, payload.context, detected_objects)
+    result = await intent_reasoner.classify_intent(
+        gesture,
+        audio,
+        child,
+        payload.context,
+        detected_objects,
+        use_llm=False,
+    )
 
     log = IntentLog(
         child_id=payload.child_id,

@@ -7,7 +7,7 @@ import ResearchPortal from "./components/ResearchPortal";
 import { api } from "./api";
 import "./App.css";
 
-const DEMO_DURATION_MS = 90000;
+const DEMO_DURATION_MS = 110000;
 
 const DEMO_STEPS = [
   { id: "seed", at: 0, label: "Resetting Maya demo", action: "seed" },
@@ -18,14 +18,17 @@ const DEMO_STEPS = [
   { id: "memory", at: 24000, label: "Redis event published", action: "highlight", page: "parent", highlight: "memory" },
   { id: "timeline", at: 30000, label: "Evidence Timeline", action: "highlight", page: "sessions", highlight: "timeline_summary" },
   { id: "pattern", at: 36000, label: "Pattern detected", action: "highlight", page: "sessions", highlight: "timeline_pattern" },
-  { id: "care", at: 42000, label: "Care Agent sponsor pipeline", action: "highlight", page: "research", highlight: "pipeline_redis" },
-  { id: "run-agent", at: 46000, label: "TinyFish source extraction", action: "research_command", command: "run_agent", page: "research", highlight: "pipeline_tinyfish" },
-  { id: "ghost", at: 58000, label: "Ghost/Postgres audit saved", action: "highlight", page: "research", highlight: "pipeline_ghost" },
-  { id: "trace", at: 63000, label: "Technical trace", action: "highlight", page: "research", highlight: "technical_trace" },
-  { id: "packet", at: 69000, label: "Parent-review packet ready", action: "highlight", page: "research", highlight: "packet_full" },
-  { id: "nexla", at: 78000, label: "Approving Nexla Express delivery", action: "research_command", command: "approve_nexla", page: "research", highlight: "pipeline_nexla" },
-  { id: "vapi", at: 84000, label: "Approving Vapi update", action: "research_command", command: "approve_vapi", page: "research", highlight: "pipeline_vapi" },
-  { id: "complete", at: 90000, label: "Sponsor pipeline complete", action: "complete", page: "research", highlight: "sponsors" },
+  { id: "care", at: 41000, label: "Care Agent ready", action: "highlight", page: "research", highlight: "pipeline_redis" },
+  { id: "teacher", at: 45000, label: "Requesting teacher update", action: "research_command", command: "request_teacher_update", page: "research", highlight: "teacher_update" },
+  { id: "teacher-report", at: 54000, label: "Teacher transcript report", action: "highlight", page: "research", highlight: "teacher_report" },
+  { id: "run-agent", at: 62000, label: "Building report from home + school evidence", action: "research_command", command: "run_agent", page: "research", highlight: "pipeline_tinyfish" },
+  { id: "report", at: 76000, label: "Full support report ready", action: "highlight", page: "research", highlight: "report_full" },
+  { id: "source-trace", at: 84000, label: "TinyFish source excerpts", action: "highlight", page: "research", highlight: "source_trace" },
+  { id: "trace", at: 91000, label: "Technical trace timeline", action: "highlight", page: "research", highlight: "technical_trace" },
+  { id: "approval", at: 97000, label: "Parent approval controls", action: "highlight", page: "research", highlight: "approval_controls" },
+  { id: "nexla", at: 101000, label: "Approving Nexla Express delivery", action: "research_command", command: "approve_nexla", page: "research", highlight: "nexla_payload" },
+  { id: "vapi", at: 106000, label: "Approving Vapi update", action: "research_command", command: "approve_vapi", page: "research", highlight: "vapi_payload" },
+  { id: "complete", at: 110000, label: "Sponsor pipeline complete", action: "complete", page: "research", highlight: "sponsor_complete" },
 ];
 
 function formatDemoTime(ms) {
@@ -92,6 +95,7 @@ export default function App() {
 
   useEffect(() => {
     if (!demo.highlight) return;
+    if (demo.status !== "running" && demo.status !== "complete") return;
     const timer = setTimeout(() => {
       document.querySelector(".demo-highlight")?.scrollIntoView({
         behavior: "smooth",
@@ -111,14 +115,14 @@ export default function App() {
         firedStepsRef.current.add(step.id);
         runDemoStep(step);
       }
-      if (elapsed >= DEMO_DURATION_MS && !firedStepsRef.current.has("auto-complete")) {
+      if (elapsed >= DEMO_DURATION_MS && !firedStepsRef.current.has("complete") && !firedStepsRef.current.has("auto-complete")) {
         firedStepsRef.current.add("auto-complete");
         setDemo(prev => ({
           ...prev,
           status: "complete",
           elapsedMs: DEMO_DURATION_MS,
           stage: "Demo complete",
-          highlight: "sponsors",
+          highlight: "sponsor_complete",
         }));
       }
     }, 300);
@@ -138,6 +142,7 @@ export default function App() {
   }
 
   function runDemoStep(step) {
+    if (demo.status !== "running") return;
     setDemo(prev => ({
       ...prev,
       stage: step.label,

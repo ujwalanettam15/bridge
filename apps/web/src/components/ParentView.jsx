@@ -51,6 +51,26 @@ function phraseForIntent(label) {
   return `I want to say: ${cleaned}`;
 }
 
+function getVideoObjectFitBox(video) {
+  const bounds = video?.getBoundingClientRect();
+  const videoWidth = video?.videoWidth || 320;
+  const videoHeight = video?.videoHeight || 240;
+  if (!bounds?.width || !bounds?.height || !videoWidth || !videoHeight) {
+    return { x: 0, y: 0, width: 100, height: 100 };
+  }
+
+  const scale = Math.min(bounds.width / videoWidth, bounds.height / videoHeight);
+  const renderedWidth = videoWidth * scale;
+  const renderedHeight = videoHeight * scale;
+
+  return {
+    x: ((bounds.width - renderedWidth) / 2 / bounds.width) * 100,
+    y: ((bounds.height - renderedHeight) / 2 / bounds.height) * 100,
+    width: (renderedWidth / bounds.width) * 100,
+    height: (renderedHeight / bounds.height) * 100,
+  };
+}
+
 function speakAloud(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
@@ -74,10 +94,12 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
   const [elapsed, setElapsed] = useState(0);
   const [confirming, setConfirming] = useState("");
   const [confirmed, setConfirmed] = useState("");
+  const [documentationInsight, setDocumentationInsight] = useState(null);
   const [speaking, setSpeaking] = useState("");
   const [agentEvents, setAgentEvents] = useState([]);
   const [detectedObjects, setDetectedObjects] = useState([]);
   const [visionStatus, setVisionStatus] = useState("idle");
+  const [videoFitBox, setVideoFitBox] = useState({ x: 0, y: 0, width: 100, height: 100 });
 
   useEffect(() => {
     contextRef.current = sessionContext;
@@ -118,6 +140,16 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
     }
   }, [demoCommand?.id]);
 
+  useEffect(() => {
+    if (!active) return;
+    function updateFitBox() {
+      setVideoFitBox(getVideoObjectFitBox(videoRef.current));
+    }
+    updateFitBox();
+    window.addEventListener("resize", updateFitBox);
+    return () => window.removeEventListener("resize", updateFitBox);
+  }, [active]);
+
   async function startSession() {
     setError("");
     setDetectedObjects([]);
@@ -126,6 +158,7 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
+      setVideoFitBox(getVideoObjectFitBox(videoRef.current));
     } catch {
       setError("Camera access denied. Please allow camera permissions.");
       return;
@@ -150,6 +183,7 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
       if (video.readyState < 2) return;
+      setVideoFitBox(getVideoObjectFitBox(video));
       const ctx = canvas.getContext("2d");
       canvas.width = 320;
       canvas.height = 240;
@@ -197,7 +231,9 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
         : await api.demoConfirmIntent(child.id, intent.label, contextRef.current, intent.confidence ?? 0.74);
       if (result.intent_log_id) setIntentLogId(result.intent_log_id);
       setConfirmed(intent.label);
+      setDocumentationInsight(result.documentation_insight || null);
       setTimeout(() => setConfirmed(""), 2400);
+      setTimeout(() => setDocumentationInsight(null), 7200);
     } catch {
       setError("Could not save the confirmation. Check the backend connection and try again.");
     } finally {
@@ -251,10 +287,10 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
                 key={`${object.label}-${i}`}
                 className={`object-box object-${object.label.replace(/\s+/g, "-")}`}
                 style={{
-                  left: `${object.box.x * 100}%`,
-                  top: `${object.box.y * 100}%`,
-                  width: `${object.box.w * 100}%`,
-                  height: `${object.box.h * 100}%`,
+                  left: `${videoFitBox.x + object.box.x * videoFitBox.width}%`,
+                  top: `${videoFitBox.y + object.box.y * videoFitBox.height}%`,
+                  width: `${object.box.w * videoFitBox.width}%`,
+                  height: `${object.box.h * videoFitBox.height}%`,
                 }}
               >
                 <span>{object.label} {Math.round(object.confidence * 100)}%</span>
@@ -293,7 +329,14 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
 
       {error && <p className="error-msg">{error}</p>}
       {confirmed && (
-        <div className="success-msg">Saved for future suggestions.</div>
+        <div className="success-msg">Added to Maya's evidence timeline.</div>
+      )}
+      {documentationInsight && (
+        <div className="pattern-toast">
+          <strong>{documentationInsight.title}</strong>
+          <span>{documentationInsight.message}</span>
+          <small>{documentationInsight.recommendation}</small>
+        </div>
       )}
 
       <div className="intent-heading">
@@ -302,7 +345,7 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
       </div>
 
       <div className="profile-update-notice">
-        Bridge suggests possible intents — your confirmation is the required step before anything updates {child.name}&rsquo;s profile.
+        Confirming saves the moment as documentation for {child.name}&rsquo;s evidence timeline and future pattern summaries.
       </div>
 
       <div className="intent-rows">
@@ -340,9 +383,9 @@ export default function ParentView({ child, sessionContext, onContextChange, dem
                 className="btn-confirm"
                 onClick={() => handleConfirm(intent)}
                 disabled={confirming === intent.label}
-                title="Confirming saves this suggestion to the profile and improves future results"
+                title="Confirming documents this moment for future evidence and pattern summaries"
               >
-                {confirming === intent.label ? "Saving..." : "Confirm & save to profile"}
+                {confirming === intent.label ? "Saving..." : "Confirm & document"}
               </button>
             </div>
           </div>

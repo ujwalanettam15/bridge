@@ -90,3 +90,11 @@ async def sync_care_packet_to_nexla(packet_data: dict, therapist_webhook: str = 
         "destination_hint": therapist_webhook,
         "data": packet_data,
     })
+
+
+async def sync_teacher_update_to_nexla(update_data: dict, destination_hint: str = "") -> dict:
+    return await _post_to_nexla_incoming_webhook({
+        "type": "teacher_daily_update",
+        "destination_hint": destination_hint,
+        "data": update_data,
+    })

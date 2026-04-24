@@ -1,8 +1,6 @@
 services:
-  # Local Postgres for offline dev.
-  # For demo: replace DATABASE_URL in .env with the Ghost connection string
-  # from `ghost connect bridge-prod` to use the real Ghost-hosted database.
-  # Ghost adds pgmq, vector, and database forking on top of standard Postgres.
+  # Local Postgres for offline dev. For the live demo, set DATABASE_URL in .env
+  # to the Ghost/TigerData connection string so the same audit tables run there.
   postgres:
     image: postgres:15
     environment:

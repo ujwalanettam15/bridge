@@ -5,7 +5,7 @@ from app.core.env import load_bridge_env
 
 load_bridge_env()
 
-from app.routers import intent, sessions, children, research, actions
+from app.routers import intent, sessions, children, research, actions, vapi_webhooks
 from app.routers.ghost_router import router as ghost_router
 from app.core.database import init_db
 
@@ -24,6 +24,7 @@ app.include_router(children.router)
 app.include_router(research.router)
 app.include_router(actions.router)
 app.include_router(ghost_router)
+app.include_router(vapi_webhooks.router)
 
 
 @app.on_event("startup")

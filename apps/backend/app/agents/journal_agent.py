@@ -20,43 +20,29 @@ async def generate_daily_journal(child_id: str, child_name: str, db) -> str:
     if not today_logs:
         return f"{child_name} had a quiet day with no recorded communication sessions."
 
-    intent_summary: dict = {}
+    confirmed_counts: dict = {}
+    context_counts: dict = {}
     for log in today_logs:
-        if not log.ranked_intents:
-            continue
-        for intent in log.ranked_intents:
-            label = intent["label"]
-            intent_summary[label] = intent_summary.get(label, 0) + 1
+        if log.confirmed_label:
+            confirmed_counts[log.confirmed_label] = confirmed_counts.get(log.confirmed_label, 0) + 1
+        context = (log.context or {}).get("label") or (log.context or {}).get("name")
+        if context:
+            context_counts[context] = context_counts.get(context, 0) + 1
 
-    fallback = (
-        f"{child_name} had {len(today_logs)} recorded communication moment(s) today. "
-        f"The most common signals were: {', '.join(list(intent_summary.keys())[:3]) or 'emerging patterns'}. "
-        "Reviewing these confirmations with a therapist can help refine tomorrow's board."
-    )
-
-    if not llm_configured():
-        return fallback
-
-    try:
-        response = await client.chat.completions.create(
-            model=chat_model(),
-            max_tokens=300,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"""Write a warm, 2-3 sentence daily journal entry for parents about their child {child_name}'s communication today.
-
-Suggested intent frequency data (parent-confirmed communication signals): {json.dumps(intent_summary)}
-Total session moments: {len(today_logs)}
-
-Write as if summarizing their communicative day. Be warm, child-centered, and dignity-preserving — focus on their communication efforts and strengths. Do not use clinical or diagnostic language. Do not mention AI or technology.""",
-                }
-            ],
+    if not confirmed_counts:
+        return (
+            f"{child_name} had {len(today_logs)} observed communication moment(s) today. "
+            "No parent-confirmed intents have been saved yet, so Bridge is waiting for confirmations before adding this to documentation."
         )
-    except Exception:
-        return fallback
 
-    return response.choices[0].message.content
+    top_labels = [label for label, _ in sorted(confirmed_counts.items(), key=lambda item: -item[1])[:3]]
+    top_context = sorted(context_counts.items(), key=lambda item: -item[1])[0][0] if context_counts else "daily routines"
+    label_text = ", ".join(top_labels)
+
+    return (
+        f"Today {child_name} had {len(today_logs)} recorded moment(s), with parent-confirmed requests for {label_text}. "
+        f"The strongest context was {top_context}. These confirmations are now part of the evidence timeline for tomorrow's supports."
+    )
 
 
 async def generate_therapist_summary(child_id: str, child_name: str, db) -> dict:
