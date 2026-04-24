@@ -6,6 +6,7 @@ SYSTEM_PROMPT = """You are an AAC (Augmentative and Alternative Communication) a
 
 You will receive:
 - Gesture/pose landmark data from a camera
+- Deterministic object detections from the camera frame
 - Audio transcription of any sounds/vocalizations
 - The child's behavioral history and known patterns
 - Context (time of day, recent intents)
@@ -26,7 +27,51 @@ Rules:
 - Labels should be natural phrases a parent would say"""
 
 
-def _demo_intents(context: dict, gesture: dict, child: Child) -> dict:
+def _normalize_scores(intents: list[dict]) -> list[dict]:
+    total = sum(i["confidence"] for i in intents) or 1
+    for intent in intents:
+        intent["confidence"] = round(intent["confidence"] / total, 2)
+    return sorted(intents, key=lambda item: item["confidence"], reverse=True)
+
+
+def _boost_visual_intents(intents: list[dict], detected_objects: list[dict] | None) -> list[dict]:
+    objects = detected_objects or []
+    has_water = any(obj.get("label") == "water bottle" for obj in objects)
+    has_hat = any(obj.get("label") == "hat" for obj in objects)
+
+    if has_water:
+        matched = False
+        for intent in intents:
+            if "water" in intent["label"].lower():
+                intent["confidence"] += 0.28
+                intent["explanation"] += " Visual detector sees a water bottle in frame."
+                matched = True
+        if not matched:
+            intents.append({
+                "label": "I want water",
+                "confidence": 0.55,
+                "explanation": "Visual detector sees a water bottle in frame.",
+            })
+
+    if has_hat:
+        matched = False
+        for intent in intents:
+            label = intent["label"].lower()
+            if "hat" in label or "outside" in label:
+                intent["confidence"] += 0.26
+                intent["explanation"] += " Visual detector sees a hat in frame."
+                matched = True
+        if not matched:
+            intents.append({
+                "label": "I want my hat",
+                "confidence": 0.52,
+                "explanation": "Visual detector sees a hat in frame, which can support a hat or going-out request.",
+            })
+
+    return intents
+
+
+def _demo_intents(context: dict, gesture: dict, child: Child, detected_objects: list[dict] | None = None) -> dict:
     context_name = (context or {}).get("name") or (context or {}).get("activity") or "mealtime"
     profile = child.behavior_profile or {}
     confirmed = profile.get("confirmed_intents", {})
@@ -62,10 +107,8 @@ def _demo_intents(context: dict, gesture: dict, child: Child) -> dict:
             explanation += f" This has been confirmed {confirmed[label]} time(s) before."
         intents.append({"label": label, "confidence": confidence, "explanation": explanation})
 
-    total = sum(i["confidence"] for i in intents) or 1
-    for intent in intents:
-        intent["confidence"] = round(intent["confidence"] / total, 2)
-    return {"intents": intents, "demo_mode": True}
+    intents = _normalize_scores(_boost_visual_intents(intents, detected_objects))
+    return {"intents": intents[:4], "demo_mode": True}
 
 
 def normalize_intents(result: dict) -> dict:
@@ -83,9 +126,9 @@ def normalize_intents(result: dict) -> dict:
     return {**result, "intents": normalized}
 
 
-async def classify_intent(gesture: dict, audio: dict, child: Child, context: dict) -> dict:
+async def classify_intent(gesture: dict, audio: dict, child: Child, context: dict, detected_objects: list[dict] | None = None) -> dict:
     if not llm_configured():
-        return _demo_intents(context, gesture, child)
+        return _demo_intents(context, gesture, child, detected_objects)
 
     user_message = f"""
 Child profile: {json.dumps(child.behavior_profile)}
@@ -96,6 +139,9 @@ Recent intents (last 5 min): {json.dumps(context.get('recent_intents', []))}
 Gesture data:
 - Hand detected: {gesture.get('has_hand', False)}
 - Key landmarks: {json.dumps(gesture.get('landmarks', [])[:20])}
+
+Detected visual objects:
+{json.dumps(detected_objects or [])}
 
 Audio:
 - Transcript: "{audio.get('transcript', '')}"
@@ -114,6 +160,8 @@ What is this child most likely communicating?"""
             response_format={"type": "json_object"},
         )
     except Exception:
-        return _demo_intents(context, gesture, child)
+        return _demo_intents(context, gesture, child, detected_objects)
 
-    return normalize_intents(json.loads(response.choices[0].message.content))
+    result = normalize_intents(json.loads(response.choices[0].message.content))
+    result["intents"] = _normalize_scores(_boost_visual_intents(result["intents"], detected_objects))[:4]
+    return result

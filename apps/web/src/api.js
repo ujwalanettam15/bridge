@@ -88,6 +88,43 @@ export const api = {
   seedDemo: (childId) =>
     fetch(`${BASE}/sessions/child/${childId}/seed-demo`, { method: "POST" }).then(asJson),
 
+  seedMayaDemo: () =>
+    fetch(`${BASE}/sessions/seed-maya-demo`, { method: "POST" }).then(asJson),
+
+  runIepAgent: (childId, payload = {}) =>
+    fetch(`${BASE}/actions/iep-agent-run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ child_id: childId, ...payload }),
+    }).then(asJson),
+
+  approveCareFollowup: (childId, agentRunId, followupType, extra = {}) =>
+    fetch(`${BASE}/actions/approve-care-followup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        child_id: childId,
+        agent_run_id: agentRunId,
+        followup_type: followupType,
+        ...extra,
+      }),
+    }).then(asJson),
+
+  demoConfirmIntent: (childId, confirmedLabel, context = {}, confidence = 0.74) =>
+    fetch(`${BASE}/actions/demo-confirm-intent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        child_id: childId,
+        confirmed_label: confirmedLabel,
+        context,
+        confidence,
+      }),
+    }).then(asJson),
+
+  getAgentEvents: (childId) =>
+    fetch(`${BASE}/actions/agent-events/${childId}`).then(asJson),
+
   generateTherapistSummary: (childId) =>
     fetch(`${BASE}/actions/therapist-summary/${childId}`).then(asJson),
 

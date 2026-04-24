@@ -3,8 +3,8 @@ import { useState } from "react";
 const NAV_ITEMS = [
   { id: "parent",    label: "Live Session",  icon: "●" },
   { id: "symbols",   label: "Voice Board", icon: "▦" },
-  { id: "research",  label: "Resources", icon: "?" },
-  { id: "sessions",  label: "History",  icon: "≡" },
+  { id: "research",  label: "Care Agent", icon: "?" },
+  { id: "sessions",  label: "Evidence Timeline",  icon: "≡" },
 ];
 
 const AVATAR_COLORS = ["#2563eb", "#0f766e", "#ca8a04", "#dc2626", "#0369a1", "#047857"];
@@ -41,7 +41,7 @@ export default function Sidebar({ child, children, onSelectChild, onAddChild, ac
         <div className="logo-mark">B</div>
         <div>
           <div className="logo-title">Bridge</div>
-          <div className="logo-sub">AAC Assistant</div>
+          <div className="logo-sub">Care Agent</div>
         </div>
       </div>
 

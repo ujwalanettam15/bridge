@@ -1,615 +1,585 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 
-const IEP_STEPS = [
-  "Reading child profile",
-  "Drafting request",
-  "Searching district portal",
-  "Preparing parent review",
+const DEFAULT_SOURCE_URLS = [
+  "https://www.sfusd.edu/sped",
+  "https://www.sfusd.edu/employees/teaching/special-education-services-employee-resources/special-education-assistive-technology-accessibility-resources",
+  "https://www.cde.ca.gov/sp/se/sr/atexmpl.asp",
 ];
 
-const APPEAL_STEPS = [
-  "Reading child profile",
-  "Drafting request",
-  "Reviewing insurer requirements",
-  "Preparing parent review",
+const DEFAULT_STEPS = [
+  "Monitoring confirmed communication history",
+  "Opening school and AAC sources with TinyFish",
+  "Extracting support requirements",
+  "Drafting parent-review packet",
+  "Awaiting approval",
 ];
 
-const THERAPIST_STEPS = [
-  "Reading child profile",
-  "Searching therapist directories",
-  "Filtering AAC matches",
-  "Preparing parent review",
-];
+const TINYFISH_RUN_URL = "https://agent.tinyfish.ai/v1/automation/run";
 
-const PARENT_REVIEW_COPY =
-  "Bridge prepares a parent-review packet only. Nothing is sent automatically.";
+function compactJson(value) {
+  return JSON.stringify(value, null, 2);
+}
 
-const TASKS = [
-  { id: "iep", label: "IEP request", description: "Draft school support language" },
-  { id: "appeal", label: "Insurance appeal", description: "Prepare a parent-review appeal" },
-  { id: "therapist", label: "Find therapist", description: "Search for AAC support nearby" },
-];
-
-function AgentActivityLog({ steps, loading, done, footer }) {
-  const [visibleCount, setVisibleCount] = useState(loading ? 1 : steps.length);
+function StepList({ steps, loading, done }) {
+  const [visible, setVisible] = useState(loading ? 1 : steps.length);
 
   useEffect(() => {
     if (!loading) {
-      setVisibleCount(steps.length);
+      setVisible(steps.length);
       return;
     }
-    setVisibleCount(1);
-    let current = 1;
-    const interval = setInterval(() => {
-      current += 1;
-      setVisibleCount(current);
-      if (current >= steps.length) clearInterval(interval);
-    }, 700);
-    return () => clearInterval(interval);
+    setVisible(1);
+    let next = 1;
+    const timer = setInterval(() => {
+      next += 1;
+      setVisible(Math.min(next, steps.length));
+      if (next >= steps.length) clearInterval(timer);
+    }, 650);
+    return () => clearInterval(timer);
   }, [loading, steps.length]);
 
   return (
-    <div className="agent-activity-log">
+    <div className="agent-activity-log care-agent-steps">
       <div className="agent-log-header">
-        <span className="agent-log-title">Agent activity</span>
+        <span className="agent-log-title">Care Agent run</span>
         {loading && <span className="pulse-dot" style={{ background: "var(--primary)" }} />}
-        {done && <span className="agent-log-done-badge">Done</span>}
+        {done && <span className="agent-log-done-badge">Ready for review</span>}
       </div>
       <ol className="agent-log-steps">
-        {steps.slice(0, visibleCount).map((step, i) => {
-          const isDone = done || i < visibleCount - 1;
+        {steps.slice(0, visible).map((step, i) => {
+          const checked = done || i < visible - 1;
           return (
-            <li key={i} className={`agent-log-step ${isDone ? "done" : "active"}`}>
-              <span className="step-icon">{isDone ? "✓" : "→"}</span>
+            <li key={step} className={`agent-log-step ${checked ? "done" : "active"}`}>
+              <span className="step-icon">{checked ? "✓" : "→"}</span>
               {step}
             </li>
           );
         })}
       </ol>
-      {done && (
-        <div className="agent-log-footer">{footer || "TinyFish prepared this review packet."}</div>
-      )}
     </div>
   );
 }
 
-function ReviewNotice({ copy }) {
-  return <div className="review-notice">{copy}</div>;
+function SourceCards({ sources }) {
+  if (!sources?.length) return null;
+  return (
+    <section className="care-section">
+      <h2 className="care-section-title">Source cards</h2>
+      <div className="source-card-grid">
+        {sources.map((source, i) => (
+          <article key={`${source.url}-${i}`} className="source-card">
+            <div className="source-card-top">
+              <span className="source-index">Source {i + 1}</span>
+              <span className="demo-mode-badge">{source.provider || "TinyFish"}</span>
+            </div>
+            <h3>{source.title}</h3>
+            <p>{source.extracted_fact}</p>
+            <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
-function DraftCard({ draft, label, status = "draft ready" }) {
-  const [copied, setCopied] = useState(false);
-
-  function copyToClipboard() {
-    const text = `Subject: ${draft.subject}\n\n${draft.body}`;
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
+function PacketCard({ draft }) {
+  if (!draft) return null;
   return (
-    <div className="draft-card">
-      <div className="draft-card-header">
-        <span className="draft-label">{label}</span>
-        <span className="demo-mode-badge">{status}</span>
-      </div>
-
-      <div className="draft-subject-row">
-        <span className="draft-subject-label">Subject line</span>
-        <span className="draft-subject">{draft.subject}</span>
-      </div>
-
-      <div className="draft-section">
-        <div className="draft-section-title">Request body</div>
-        <div className="draft-body-wrap">
-          <pre className="draft-body">{draft.body}</pre>
+    <section className="care-section packet-card">
+      <div className="packet-header">
+        <div>
+          <span className="draft-label">Parent-review packet</span>
+          <h2>{draft.subject}</h2>
         </div>
+        <span className="demo-mode-badge">Review required</span>
       </div>
-
+      <pre className="packet-body">{draft.body}</pre>
       {draft.rationale && (
-        <div className="draft-section">
-          <div className="draft-section-title">Supporting rationale</div>
-          <p className="draft-rationale">{draft.rationale}</p>
+        <div className="packet-rationale">
+          <strong>Why this packet:</strong> {draft.rationale}
         </div>
       )}
-
       {draft.parent_next_steps?.length > 0 && (
-        <div className="draft-section draft-next-steps">
-          <div className="draft-section-title">Parent next steps</div>
-          <ol className="draft-next-steps-list">
-            {draft.parent_next_steps.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
-          </ol>
-        </div>
+        <ol className="packet-next-steps">
+          {draft.parent_next_steps.map((step, i) => <li key={i}>{step}</li>)}
+        </ol>
       )}
-
-      <div className="draft-card-footer">
-        <button className="btn-copy-draft" onClick={copyToClipboard}>
-          {copied ? "Copied!" : "Copy draft"}
-        </button>
-      </div>
-    </div>
+    </section>
   );
 }
 
-function TherapistResultCard({ result, zipCode, insuranceProvider }) {
-  const resources = result?.resources || [];
-  const isDemoMode = result?.status === "demo_mode";
-  const note =
-    result?.resource_note ||
-    `Review these provider options yourself before outreach${
-      insuranceProvider ? ` and confirm they still accept ${insuranceProvider}.` : "."
-    }`;
+function pipelineStatus(status, fallback = "waiting") {
+  if (!status) return fallback;
+  return typeof status === "string" ? status : status.status || fallback;
+}
+
+function SponsorPipeline({ statuses, approvals, events, result, demoHighlight }) {
+  const lastEvent = events?.[0]?.message || "Waiting for agent event";
+  const rows = [
+    {
+      key: "redis",
+      name: "Redis",
+      action: "Live Agent Memory",
+      status: statuses?.redis?.status || (events?.length ? "published" : "waiting"),
+      detail: events?.length ? lastEvent : "Publishes confirmed moments and agent stages.",
+    },
+    {
+      key: "tinyfish",
+      name: "TinyFish",
+      action: "Open-web extraction",
+      status: pipelineStatus(statuses?.tinyfish, result?.sources?.length ? "sources extracted" : "waiting"),
+      detail: statuses?.tinyfish?.message || "POST automation runs against school/AAC source URLs.",
+    },
+    {
+      key: "ghost",
+      name: "Ghost/Postgres",
+      action: "Audit DB",
+      status: result?.agent_run_id ? "audit saved" : "waiting",
+      detail: result?.agent_run_id ? `AgentRun ${result.agent_run_id}` : "Stores sources, draft, approvals, and sponsor results.",
+    },
+    {
+      key: "nexla",
+      name: "Nexla Express",
+      action: "Incoming Webhook",
+      status: approvals?.nexla_sync?.result?.status || pipelineStatus(statuses?.nexla, "awaiting approval"),
+      detail: approvals?.nexla_sync?.result?.message || "Parent-approved packet delivery waits here.",
+    },
+    {
+      key: "vapi",
+      name: "Vapi",
+      action: "Care-team voice update",
+      status: approvals?.vapi_update?.result?.status || pipelineStatus(statuses?.vapi, "awaiting approval"),
+      detail: approvals?.vapi_update?.result?.message || "Parent-approved phone/voice update waits here.",
+    },
+  ];
+
   return (
-    <div className="therapist-demo-result">
-      <div className="therapist-demo-header">
-        <span>AAC therapists near {zipCode}</span>
-        <span className="demo-mode-badge">{isDemoMode ? "Demo results" : "Agent results"}</span>
+    <section className="care-section sponsor-pipeline-card">
+      <div className="pipeline-header">
+        <div>
+          <span className="history-kicker">Sponsor pipeline</span>
+          <h2>Communication evidence to care-team action</h2>
+        </div>
+        <span className="pipeline-run-id">{result?.agent_run_id ? "audit saved" : "ready"}</span>
       </div>
-      {result?.message && <div className="resource-result-message">{result.message}</div>}
-      <div className="therapist-demo-list">
-        {resources.length > 0 ? (
-          resources.map((r, i) => (
-            <div key={i} className="therapist-demo-item">
-              <div className="therapist-demo-name">{r.name}</div>
-              <div className="therapist-demo-specialty">{r.specialty}</div>
-              <div className="therapist-demo-meta">
-                <span className="therapist-demo-distance">{r.distance}</span>
-                <span className="therapist-demo-insurance">{r.insurance.join(" · ")}</span>
+      <div className="pipeline-grid">
+        {rows.map((row, index) => (
+          <article
+            key={row.key}
+            className={`pipeline-node ${demoHighlight === `pipeline_${row.key}` ? "demo-highlight" : ""}`}
+          >
+            <div className="pipeline-node-top">
+              <span className="pipeline-index">{index + 1}</span>
+              <span className="pipeline-status">{row.status}</span>
+            </div>
+            <h3>{row.name}</h3>
+            <strong>{row.action}</strong>
+            <p>{row.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TechnicalTrace({ result, approvals, events, demoHighlight }) {
+  const confirmedEvent = events?.find(event => event.type === "parent_confirmed")
+    || events?.find(event => /Parent confirmed/i.test(event.message));
+  const sources = result?.sources || [];
+  const nexlaPayload = result ? {
+    type: "aac_iep_support_packet",
+    destination_hint: "care team",
+    data: {
+      child_name: "Maya",
+      agent_run_id: result.agent_run_id,
+      pattern_summary: result.pattern_summary,
+      draft_subject: result.draft?.subject,
+      source_count: sources.length,
+    },
+  } : null;
+  const vapiPreview = approvals?.vapi_update?.result?.voice_update || (
+    result ? "Hi, this is Bridge with a parent-approved update for Maya. Bridge prepared an AAC and IEP support packet for review." : ""
+  );
+  const traceRows = [
+    {
+      service: "Redis",
+      action: "event published",
+      status: confirmedEvent ? "confirmed" : "waiting",
+      summary: confirmedEvent?.message || "Waiting for parent-confirmed moment.",
+      payload: confirmedEvent?.payload,
+    },
+    {
+      service: "TinyFish",
+      action: "open-web extraction",
+      status: sources.length ? `${sources.length} sources` : "waiting",
+      summary: `POST ${TINYFISH_RUN_URL}`,
+      payload: {
+        headers: { "X-API-Key": "configured server-side" },
+        body: { url: DEFAULT_SOURCE_URLS[0], goal: "Extract AAC/IEP support fact" },
+      },
+    },
+    {
+      service: "TinyFish",
+      action: "facts extracted",
+      status: sources.length ? "ready" : "waiting",
+      summary: sources.length ? sources.map(source => source.title).join(", ") : "Source cards will appear after extraction.",
+      payload: sources.map(source => ({
+        title: source.title,
+        url: source.url,
+        extracted_fact: source.extracted_fact,
+      })),
+    },
+    {
+      service: "Ghost/Postgres",
+      action: "AgentRun saved",
+      status: result?.agent_run_id ? "saved" : "waiting",
+      summary: result?.agent_run_id ? `Audit ID ${result.agent_run_id}` : "Waiting for packet run.",
+      payload: result ? {
+        agent_run_id: result.agent_run_id,
+        status: result.status,
+        source_count: sources.length,
+        approvals: Object.keys(approvals || {}),
+      } : null,
+    },
+    {
+      service: "Nexla Express",
+      action: "POST to Incoming Webhook",
+      status: approvals?.nexla_sync?.result?.status || "awaiting approval",
+      summary: approvals?.nexla_sync?.result?.message || "Prepared structured packet for approved data delivery.",
+      payload: nexlaPayload,
+    },
+    {
+      service: "Vapi",
+      action: "care-team voice update",
+      status: approvals?.vapi_update?.result?.status || "awaiting approval",
+      summary: approvals?.vapi_update?.result?.message || "Prepared parent-approved voice update preview.",
+      payload: vapiPreview ? { voice_update: vapiPreview } : null,
+    },
+  ];
+
+  return (
+    <section className={`care-section technical-trace-card ${demoHighlight === "technical_trace" ? "demo-highlight" : ""}`}>
+      <div className="trace-header">
+        <div>
+          <span className="history-kicker">Technical trace</span>
+          <h2>What the agent is doing behind the UI</h2>
+        </div>
+      </div>
+      <div className="trace-list">
+        {traceRows.map((row, index) => (
+          <article key={`${row.service}-${row.action}`} className="trace-row">
+            <div className="trace-row-main">
+              <span className="trace-service">{row.service}</span>
+              <div>
+                <strong>{row.action}</strong>
+                <p>{row.summary}</p>
               </div>
+              <span className="trace-status">{row.status}</span>
+            </div>
+            {row.payload && (
+              <details className="payload-preview">
+                <summary>View payload</summary>
+                <pre>{compactJson(row.payload)}</pre>
+              </details>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SponsorStatus({ statuses, approvals }) {
+  const rows = [
+    ["Redis", statuses?.redis?.status || "ready", statuses?.redis?.message || "Live agent memory publishes session and care-agent events."],
+    ["TinyFish", statuses?.tinyfish?.status || "ready", statuses?.tinyfish?.message || "Ready to extract source facts."],
+    ["Nexla Express", statuses?.nexla?.status || approvals?.nexla_sync?.result?.status || "awaiting approval", statuses?.nexla?.message || approvals?.nexla_sync?.result?.message || "Incoming Webhook delivery waits for parent approval."],
+    ["Vapi", statuses?.vapi?.status || approvals?.vapi_update?.result?.status || "awaiting approval", statuses?.vapi?.message || approvals?.vapi_update?.result?.message || "Care-team voice update waits for parent approval."],
+    ["Ghost", statuses?.ghost?.status || "audit saved", statuses?.ghost?.message || "Agent audit is stored in the configured DATABASE_URL."],
+  ];
+  return (
+    <section className="care-section">
+      <h2 className="care-section-title">Sponsor status</h2>
+      <div className="sponsor-status-grid">
+        {rows.map(([name, status, message]) => (
+          <div key={name} className="sponsor-status-card">
+            <div className="sponsor-status-top">
+              <strong>{name}</strong>
+              <span>{status}</span>
+            </div>
+            <p>{message}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LiveMemory({ events }) {
+  return (
+    <section className="live-memory-panel care-memory">
+      <div className="live-memory-header">
+        <span>Live Agent Memory</span>
+        <small>Redis event stream</small>
+      </div>
+      <div className="live-memory-list">
+        {events.length === 0 ? (
+          <div className="live-memory-empty">Run the Care Agent to stream source and approval events.</div>
+        ) : (
+          events.slice(0, 8).map((event, i) => (
+            <div key={`${event.timestamp}-${i}`} className="live-memory-event">
+              <span className="memory-dot" />
+              <span>{event.message}</span>
             </div>
           ))
-        ) : (
-          <div className="therapist-demo-item">
-            <div className="therapist-demo-specialty">
-              Structured provider matches will appear here when the agent returns them.
-            </div>
-          </div>
         )}
       </div>
-      <p className="therapist-demo-note">{note}</p>
-    </div>
+    </section>
   );
 }
 
-function TinyfishResult({ result }) {
-  if (!result) return null;
-  const status = result.status ?? "unknown";
-  const resultSteps = result.agent_steps ?? result.steps ?? [];
-  const detail =
-    typeof result.result === "string"
-      ? result.result
-      : result.message ?? result.detail ?? JSON.stringify(result);
-  const isSuccess = status === "completed" || status === "success";
-  const isRunning = status === "running" || status === "pending";
-  const statusLabel = isSuccess ? "Completed" : isRunning ? "Agent running" : status;
-
-  return (
-    <div className={`tinyfish-result ${isSuccess ? "success" : isRunning ? "running" : "error"}`}>
-      <div className="tf-status">
-        <span className="tf-status-dot" />
-        {statusLabel}
-      </div>
-      {detail && <div className="tf-detail">{String(detail)}</div>}
-      {result.parent_control_notice && (
-        <div className="tf-parent-control">{result.parent_control_notice}</div>
-      )}
-      {result.task_id && <div className="tf-meta">Task ID: {result.task_id}</div>}
-      {resultSteps.length > 0 && (
-        <details className="tf-steps">
-          <summary>Agent steps ({resultSteps.length})</summary>
-          <ol>
-            {resultSteps.map((step, i) => (
-              <li key={i}>
-                {typeof step === "string" ? step : step.description ?? JSON.stringify(step)}
-              </li>
-            ))}
-          </ol>
-        </details>
-      )}
-    </div>
-  );
-}
-
-export default function ResearchPortal({ child }) {
-  const [activeTask, setActiveTask] = useState("iep");
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      text: `Hi! I'm here to help you navigate insurance, IEPs, school systems, and therapy options for ${child.name}. What would you like to know?`,
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-
-  const [iepForm, setIepForm] = useState({
-    childName: child.name,
-    district: "",
-    grade: "",
-    disability: "",
+export default function ResearchPortal({ child, demoCommand, demoHighlight = "" }) {
+  const [form, setForm] = useState({
+    school_district: "San Francisco Unified School District",
+    grade: "1st",
+    disability: "Autism Spectrum Disorder",
   });
-  const [iepLoading, setIepLoading] = useState(false);
-  const [iepResult, setIepResult] = useState(null);
-  const [iepError, setIepError] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [events, setEvents] = useState([]);
+  const [approvals, setApprovals] = useState({});
+  const [approving, setApproving] = useState("");
+  const [pendingApprovals, setPendingApprovals] = useState([]);
 
-  const [appealForm, setAppealForm] = useState({ provider: "", reason: "" });
-  const [appealLoading, setAppealLoading] = useState(false);
-  const [appealResult, setAppealResult] = useState(null);
-  const [appealError, setAppealError] = useState(null);
-
-  const [therapistForm, setTherapistForm] = useState({ zipCode: "", insuranceProvider: "" });
-  const [therapistLoading, setTherapistLoading] = useState(false);
-  const [therapistResult, setTherapistResult] = useState(null);
-  const [therapistError, setTherapistError] = useState(null);
-
-  const bottomRef = useRef(null);
+  function refreshEvents() {
+    api.getAgentEvents(child.id)
+      .then(res => setEvents(res.events || []))
+      .catch(() => {});
+  }
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    refreshEvents();
+    const timer = setInterval(refreshEvents, 2500);
+    return () => clearInterval(timer);
+  }, [child.id]);
 
   useEffect(() => {
-    setMessages([
-      {
-        role: "assistant",
-        text: `Hi! I'm here to help you navigate insurance, IEPs, school systems, and therapy options for ${child.name}. What would you like to know?`,
-      },
-    ]);
-    setIepForm(form => ({ ...form, childName: child.name }));
-  }, [child.name]);
+    if (!demoCommand) return;
+    if (demoCommand.type === "run_agent") {
+      runAgent();
+    }
+    if (demoCommand.type === "approve_nexla") {
+      handleDemoApproval("nexla_sync");
+    }
+    if (demoCommand.type === "approve_vapi") {
+      handleDemoApproval("vapi_update");
+    }
+  }, [demoCommand?.id]);
 
-  async function send(e) {
-    e.preventDefault();
-    if (!input.trim()) return;
-    const question = input.trim();
-    setInput("");
-    setMessages(m => [...m, { role: "user", text: question }]);
-    setChatLoading(true);
+  useEffect(() => {
+    if (!result?.agent_run_id || approving || pendingApprovals.length === 0) return;
+    const [next, ...rest] = pendingApprovals;
+    setPendingApprovals(rest);
+    approve(next);
+  }, [result?.agent_run_id, approving, pendingApprovals]);
+
+  useEffect(() => {
+    if (!demoHighlight) return;
+    const timer = setTimeout(() => {
+      document.querySelector(".demo-highlight")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [demoHighlight, result, approvals]);
+
+  async function runAgent() {
+    setRunning(true);
+    setError("");
+    setApprovals({});
+    setPendingApprovals([]);
     try {
-      const res = await api.askResearch(question, child.age);
-      setMessages(m => [...m, { role: "assistant", text: res.answer }]);
+      const response = await api.runIepAgent(child.id, {
+        ...form,
+        source_urls: DEFAULT_SOURCE_URLS,
+      });
+      setResult(response);
+      refreshEvents();
     } catch {
-      setMessages(m => [
-        ...m,
-        { role: "assistant", text: "Sorry, something went wrong. Please try again." },
-      ]);
+      setError("Care Agent run failed. Check the backend connection and try again.");
     } finally {
-      setChatLoading(false);
+      setRunning(false);
     }
   }
 
-  async function handleIep(e) {
-    e.preventDefault();
-    setIepLoading(true);
-    setIepResult(null);
-    setIepError(null);
+  async function approve(type) {
+    if (!result?.agent_run_id) return;
+    setApproving(type);
     try {
-      const result = await api.fileIep(
-        child.id,
-        iepForm.district,
-        iepForm.grade,
-        iepForm.disability
-      );
-      setIepResult(result);
+      const response = await api.approveCareFollowup(child.id, result.agent_run_id, type);
+      const nextApprovals = response.approvals || {
+        ...approvals,
+        [type]: { result: response.result },
+      };
+      setApprovals(nextApprovals);
+      setResult(prev => ({
+        ...prev,
+        sponsor_statuses: response.sponsor_statuses || prev.sponsor_statuses,
+      }));
+      refreshEvents();
     } catch {
-      setIepError(
-        "The agent request failed. Check that your Tinyfish API key is valid and the school district name is correct."
-      );
+      setError(`Could not approve ${type}. The packet is still saved for review.`);
     } finally {
-      setIepLoading(false);
+      setApproving("");
     }
   }
 
-  async function handleAppeal(e) {
-    e.preventDefault();
-    setAppealLoading(true);
-    setAppealResult(null);
-    setAppealError(null);
-    try {
-      const result = await api.appealInsurance(
-        child.id,
-        appealForm.provider,
-        appealForm.reason
-      );
-      setAppealResult(result);
-    } catch {
-      setAppealError("The appeal request failed. Check that your Tinyfish API key is valid.");
-    } finally {
-      setAppealLoading(false);
+  function handleDemoApproval(type) {
+    if (result?.agent_run_id) {
+      approve(type);
+      return;
     }
+    setPendingApprovals(prev => prev.includes(type) ? prev : [...prev, type]);
   }
 
-  async function handleTherapistSearch(e) {
-    e.preventDefault();
-    setTherapistLoading(true);
-    setTherapistResult(null);
-    setTherapistError(null);
-    try {
-      const result = await api.searchTherapists(
-        child.id,
-        therapistForm.zipCode,
-        therapistForm.insuranceProvider
-      );
-      setTherapistResult(result);
-    } catch {
-      setTherapistError(
-        "The therapist search request failed. Check that your TinyFish API key is valid or use demo mode."
-      );
-    } finally {
-      setTherapistLoading(false);
-    }
-  }
-
-  function renderActiveTask() {
-    if (activeTask === "iep") {
-      const isDraftResult = Boolean(iepResult?.draft);
-      const reviewNotice = iepResult?.parent_control_notice || PARENT_REVIEW_COPY;
-      return (
-        <div className="action-form-card">
-          <div className="action-form-header blue">
-            <h3>IEP request</h3>
-            <p>Draft a school-ready request while keeping the parent in control before submission.</p>
-          </div>
-          <form onSubmit={handleIep}>
-            <ReviewNotice copy={PARENT_REVIEW_COPY} />
-            <div className="form-field">
-              <label>Child Name</label>
-              <input
-                value={iepForm.childName}
-                readOnly
-              />
-            </div>
-            <div className="form-field">
-              <label>School District</label>
-              <input
-                placeholder="e.g. Austin ISD"
-                value={iepForm.district}
-                onChange={e => setIepForm(f => ({ ...f, district: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="form-row">
-              <div className="form-field">
-                <label>Grade</label>
-                <input
-                  placeholder="e.g. 2nd"
-                  value={iepForm.grade}
-                  onChange={e => setIepForm(f => ({ ...f, grade: e.target.value }))}
-                />
-              </div>
-              <div className="form-field">
-                <label>Disability Category</label>
-                <input
-                  placeholder="e.g. Autism Spectrum Disorder"
-                  value={iepForm.disability}
-                  onChange={e => setIepForm(f => ({ ...f, disability: e.target.value }))}
-                />
-              </div>
-            </div>
-            <button type="submit" disabled={iepLoading} className="btn-action">
-              {iepLoading ? "Drafting..." : "Draft IEP Request"}
-            </button>
-          </form>
-
-          {(iepLoading || iepResult) && (
-            <div className="agent-workflow">
-              <AgentActivityLog
-                steps={iepResult?.agent_steps || IEP_STEPS}
-                loading={iepLoading}
-                done={!iepLoading && !!iepResult}
-                footer={reviewNotice}
-              />
-              {isDraftResult && (
-                <DraftCard
-                  draft={iepResult.draft}
-                  label="IEP request draft"
-                  status={iepResult?.status === "demo_mode" ? "Demo mode" : "Ready for parent review"}
-                />
-              )}
-              {iepResult && !isDraftResult && <TinyfishResult result={iepResult} />}
-            </div>
-          )}
-          {iepError && (
-            <div className="form-error" style={{ margin: "0 18px 18px" }}>
-              {iepError}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    if (activeTask === "appeal") {
-      const isDraftResult = Boolean(appealResult?.draft);
-      const reviewNotice = appealResult?.parent_control_notice || PARENT_REVIEW_COPY;
-      return (
-        <div className="action-form-card">
-          <div className="action-form-header orange">
-            <h3>Insurance appeal</h3>
-            <p>Prepare appeal language for parent review before anything is sent to the insurer.</p>
-          </div>
-          <form onSubmit={handleAppeal}>
-            <ReviewNotice copy={PARENT_REVIEW_COPY} />
-            <div className="form-field">
-              <label>Insurance Provider</label>
-              <input
-                placeholder="e.g. Blue Cross Blue Shield"
-                value={appealForm.provider}
-                onChange={e => setAppealForm(f => ({ ...f, provider: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="form-field">
-              <label>Denial Reason</label>
-              <input
-                placeholder="e.g. Not medically necessary"
-                value={appealForm.reason}
-                onChange={e => setAppealForm(f => ({ ...f, reason: e.target.value }))}
-                required
-              />
-            </div>
-            <button type="submit" disabled={appealLoading} className="btn-action">
-              {appealLoading ? "Drafting..." : "Draft Appeal"}
-            </button>
-          </form>
-
-          {(appealLoading || appealResult) && (
-            <div className="agent-workflow">
-              <AgentActivityLog
-                steps={appealResult?.agent_steps || APPEAL_STEPS}
-                loading={appealLoading}
-                done={!appealLoading && !!appealResult}
-                footer={reviewNotice}
-              />
-              {isDraftResult && (
-                <DraftCard
-                  draft={appealResult.draft}
-                  label="Insurance appeal draft"
-                  status={
-                    appealResult?.status === "demo_mode" ? "Demo mode" : "Ready for parent review"
-                  }
-                />
-              )}
-              {appealResult && !isDraftResult && <TinyfishResult result={appealResult} />}
-            </div>
-          )}
-          {appealError && (
-            <div className="form-error" style={{ margin: "0 18px 18px" }}>
-              {appealError}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="action-form-card">
-        <div className="action-form-header green">
-          <h3>Find therapist</h3>
-          <p>Compile therapist options for parent review with transparent demo labeling when needed.</p>
-        </div>
-        <form onSubmit={handleTherapistSearch}>
-          <ReviewNotice copy="Bridge can gather options, but parents stay in control of outreach and scheduling." />
-          <div className="form-field">
-            <label>ZIP Code</label>
-            <input
-              placeholder="e.g. 78701"
-              value={therapistForm.zipCode}
-              onChange={e =>
-                setTherapistForm(form => ({ ...form, zipCode: e.target.value }))
-              }
-              required
-            />
-          </div>
-          <div className="form-field">
-            <label>Insurance Plan (optional)</label>
-            <input
-              placeholder="e.g. Aetna"
-              value={therapistForm.insuranceProvider}
-              onChange={e =>
-                setTherapistForm(form => ({ ...form, insuranceProvider: e.target.value }))
-              }
-            />
-          </div>
-          <button type="submit" className="btn-action" disabled={therapistLoading}>
-            {therapistLoading ? "Searching..." : "Search Therapists"}
-          </button>
-        </form>
-
-        {(therapistLoading || therapistResult) && (
-          <div className="agent-workflow">
-            <AgentActivityLog
-              steps={therapistResult?.agent_steps || THERAPIST_STEPS}
-              loading={therapistLoading}
-              done={!therapistLoading && !!therapistResult}
-              footer={
-                therapistResult?.parent_control_notice ||
-                "TinyFish gathered options, and parent review is still required before outreach."
-              }
-            />
-            {therapistResult && !therapistLoading && (
-              <TherapistResultCard
-                result={therapistResult}
-                zipCode={therapistForm.zipCode}
-                insuranceProvider={therapistForm.insuranceProvider}
-              />
-            )}
-          </div>
-        )}
-        {therapistError && (
-          <div className="form-error" style={{ margin: "0 18px 18px" }}>
-            {therapistError}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const steps = result?.agent_steps || DEFAULT_STEPS;
+  const statuses = result?.sponsor_statuses || {};
 
   return (
-    <div className="research-portal">
-      <div className="page-header">
+    <div className="research-portal care-agent-page">
+      <div className="page-header care-agent-header">
         <div>
-          <h1 className="page-title">Family Resources</h1>
+          <h1 className="page-title">Care Agent</h1>
           <p className="page-sub">
-            Ask questions, draft support requests, and keep parents in control.
+            Turn parent-confirmed moments into source-grounded AAC/IEP support packets.
           </p>
         </div>
       </div>
 
-      <div className="research-columns">
-        <div className="research-chat-col">
-          <div className="chat-card">
-            <h2 className="card-title">Ask a question</h2>
-            <div className="chat-messages-area">
-              {messages.map((m, i) => (
-                <div key={i} className={`chat-bubble ${m.role}`}>
-                  {m.text}
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="chat-bubble assistant typing">
-                  <span className="dot" />
-                  <span className="dot" />
-                  <span className="dot" />
-                </div>
-              )}
-              <div ref={bottomRef} />
+      <div className="care-agent-layout">
+        <div className="care-agent-main">
+          <section className={`care-hero-panel ${demoHighlight === "care_hero" ? "demo-highlight" : ""}`}>
+            <div className="care-hero-copy">
+              <span className="history-kicker">Demo action</span>
+              <h2>From one communication moment to an IEP-ready support packet.</h2>
+              <p>
+                Bridge reviews Maya's confirmed communication pattern, extracts facts from real
+                school/AAC sources with TinyFish, and prepares a packet for parent review.
+              </p>
             </div>
-            <form className="chat-input-row" onSubmit={send}>
-              <input
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                placeholder="Ask anything about AAC, IEP rights, insurance appeals..."
-                disabled={chatLoading}
-              />
-              <button
-                type="submit"
-                disabled={chatLoading || !input.trim()}
-                className="btn-primary"
-              >
-                Send
-              </button>
-            </form>
-          </div>
+            <div className="maya-profile-card">
+              <div className="avatar" style={{ background: "#0f766e" }}>M</div>
+              <div>
+                <strong>Maya</strong>
+                <span>Age 6 · minimally verbal</span>
+                <small>Uses gestures, pointing, and picture choices</small>
+                <small>Goal: AAC support across school/home routines</small>
+              </div>
+            </div>
+          </section>
+
+          <SponsorPipeline
+            statuses={statuses}
+            approvals={approvals}
+            events={events}
+            result={result}
+            demoHighlight={demoHighlight}
+          />
+
+          <section className={`care-run-card ${demoHighlight === "care_run" ? "demo-highlight" : ""}`}>
+            <div className="care-run-fields">
+              <label>
+                School district
+                <input
+                  value={form.school_district}
+                  onChange={e => setForm(f => ({ ...f, school_district: e.target.value }))}
+                />
+              </label>
+              <label>
+                Grade
+                <input
+                  value={form.grade}
+                  onChange={e => setForm(f => ({ ...f, grade: e.target.value }))}
+                />
+              </label>
+              <label>
+                Disability category
+                <input
+                  value={form.disability}
+                  onChange={e => setForm(f => ({ ...f, disability: e.target.value }))}
+                />
+              </label>
+            </div>
+            <button className="btn-action btn-care-primary" disabled={running} onClick={runAgent}>
+              {running ? "Drafting packet..." : "Draft AAC/IEP Support Packet"}
+            </button>
+          </section>
+
+          {(running || result) && (
+            <StepList steps={steps} loading={running} done={!running && !!result} />
+          )}
+
+          <TechnicalTrace
+            result={result}
+            approvals={approvals}
+            events={events}
+            demoHighlight={demoHighlight}
+          />
+
+          {error && <div className="form-error">{error}</div>}
+
+          {result && (
+            <>
+              <div className={demoHighlight === "sources" ? "demo-highlight" : ""}>
+                <SourceCards sources={result.sources} />
+              </div>
+              <div className={demoHighlight === "packet_full" ? "demo-highlight" : ""}>
+                <PacketCard draft={result.draft} />
+              </div>
+
+              <section className={`care-section approval-card ${demoHighlight === "approval" ? "demo-highlight" : ""}`}>
+                <div>
+                  <span className="history-kicker">Parent approval required</span>
+                  <h2>Coordinate follow-up</h2>
+                  <p>{result.parent_control_notice || "Nothing is sent or called without parent approval."}</p>
+                </div>
+                <div className="approval-actions">
+                  <button
+                    className="btn-sync-nexla"
+                    disabled={approving === "nexla_sync"}
+                    onClick={() => approve("nexla_sync")}
+                  >
+                    {approving === "nexla_sync" ? "Delivering..." : "Approve Nexla Express Delivery"}
+                  </button>
+                  <button
+                    className="btn-vapi-update"
+                    disabled={approving === "vapi_update"}
+                    onClick={() => approve("vapi_update")}
+                  >
+                    {approving === "vapi_update" ? "Preparing..." : "Approve Vapi Care-Team Update"}
+                  </button>
+                </div>
+              </section>
+
+              <div className={demoHighlight === "sponsors" ? "demo-highlight" : ""}>
+                <SponsorStatus statuses={statuses} approvals={approvals} />
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="research-actions-col">
-          <div className="task-picker">
-            {TASKS.map(task => (
-              <button
-                key={task.id}
-                className={`task-tile ${activeTask === task.id ? "active" : ""}`}
-                onClick={() => setActiveTask(task.id)}
-              >
-                <span>{task.label}</span>
-                <small>{task.description}</small>
-              </button>
+        <aside className="care-agent-side">
+          <LiveMemory events={events} />
+          <section className="care-source-list">
+            <h2 className="care-section-title">Seeded open-web sources</h2>
+            {DEFAULT_SOURCE_URLS.map(url => (
+              <a key={url} href={url} target="_blank" rel="noreferrer">{url}</a>
             ))}
-          </div>
-          {renderActiveTask()}
-        </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

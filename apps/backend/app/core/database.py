@@ -1,9 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.core.env import load_bridge_env
+
+load_bridge_env()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bridge_demo.db")
 

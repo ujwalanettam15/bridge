@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import uuid
 
-from app.models import Session, IntentLog
+from app.models import Child, IntentLog, Session
 from app.core.database import get_db
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -53,60 +53,45 @@ def get_child_intent_logs(child_id: str, db=Depends(get_db)):
 
 @router.post("/child/{child_id}/seed-demo")
 def seed_demo_logs(child_id: str, db=Depends(get_db)):
-    from app.models import Child
-    import random
     from datetime import timedelta
 
     child = db.query(Child).filter(Child.id == child_id).first()
     if not child:
         raise HTTPException(status_code=404, detail="Child not found")
 
-    existing = db.query(IntentLog).filter(IntentLog.child_id == child_id).count()
-    if existing > 0:
-        return {"seeded": 0, "message": "Already has data"}
-
-    demo_intents = [
-        {"label": "I want water", "confidence": 0.78},
-        {"label": "I need a break", "confidence": 0.65},
-        {"label": "I want more", "confidence": 0.71},
-        {"label": "I'm done", "confidence": 0.82},
-        {"label": "I need help", "confidence": 0.69},
-        {"label": "I want food", "confidence": 0.74},
-    ]
-    contexts = [
-        {"name": "mealtime", "label": "Mealtime"},
-        {"name": "therapy", "label": "Therapy"},
-        {"name": "school", "label": "School"},
-    ]
+    db.query(IntentLog).filter(IntentLog.child_id == child_id).delete()
 
     now = datetime.utcnow()
-    logs = []
-    for _ in range(16):
-        days_ago = random.randint(0, 6)
-        hours_ago = random.randint(7, 19)
-        ts = now - timedelta(days=days_ago, hours=hours_ago)
+    monday = now - timedelta(days=now.weekday())
+    demo_events = [
+        (monday.replace(hour=18, minute=18, second=0, microsecond=0), "mealtime", "Mealtime", "I want water", 0.78),
+        ((monday + timedelta(days=1)).replace(hour=18, minute=42, second=0, microsecond=0), "mealtime", "Mealtime", "I want water", 0.76),
+        ((monday + timedelta(days=2)).replace(hour=19, minute=5, second=0, microsecond=0), "homework", "Homework", "I need help", 0.72),
+        ((monday + timedelta(days=3)).replace(hour=18, minute=31, second=0, microsecond=0), "mealtime", "Mealtime", "I want water", 0.81),
+        ((monday + timedelta(days=4)).replace(hour=17, minute=58, second=0, microsecond=0), "transition", "Transition", "I need help", 0.69),
+        (now.replace(hour=18, minute=22, second=0, microsecond=0), "mealtime", "Mealtime", "I want water", 0.8),
+    ]
 
-        primary = random.choice(demo_intents)
-        others = random.sample([d for d in demo_intents if d != primary], 2)
+    logs = []
+    for ts, ctx_name, ctx_label, label, confidence in demo_events:
+        secondary = "I need help" if label == "I want water" else "I want water"
         ranked = [
-            {"label": primary["label"], "confidence": primary["confidence"]},
-            {"label": others[0]["label"], "confidence": round((1 - primary["confidence"]) * 0.55, 2)},
-            {"label": others[1]["label"], "confidence": round((1 - primary["confidence"]) * 0.35, 2)},
+            {"label": label, "confidence": confidence},
+            {"label": secondary, "confidence": 0.16},
+            {"label": "I need a break", "confidence": 0.1},
         ]
-        ctx = random.choice(contexts)
-        confirmed = primary["label"] if random.random() > 0.25 else None
 
         log = IntentLog(
             id=str(uuid.uuid4()),
             child_id=child_id,
             timestamp=ts,
-            context=ctx,
+            context={"name": ctx_name, "label": ctx_label},
             gesture_vector={"has_hand": True, "demo_mode": True, "landmarks": []},
             audio_transcript="",
             ranked_intents=ranked,
-            confirmed_label=confirmed,
-            confirmed_at=ts if confirmed else None,
-            spoken_phrase=None,
+            confirmed_label=label,
+            confirmed_at=ts,
+            spoken_phrase=label,
         )
         logs.append(log)
 
@@ -115,3 +100,42 @@ def seed_demo_logs(child_id: str, db=Depends(get_db)):
     db.commit()
 
     return {"seeded": len(logs), "message": "Demo data seeded"}
+
+
+@router.post("/seed-maya-demo")
+def seed_maya_demo(db=Depends(get_db)):
+    child = db.query(Child).filter(Child.name == "Maya").first()
+    if not child:
+        child = Child(
+            id=str(uuid.uuid4()),
+            name="Maya",
+            age=6,
+            behavior_profile={
+                "communication_profile": "Minimally verbal; uses gestures, pointing, and picture choices.",
+                "routines": ["meals", "transitions", "homework"],
+                "current_goal": "AAC support across school and home routines",
+            },
+            preferred_symbols=["Water", "Help", "More", "All Done"],
+        )
+        db.add(child)
+        db.commit()
+        db.refresh(child)
+    else:
+        child.age = 6
+        child.behavior_profile = {
+            "communication_profile": "Minimally verbal; uses gestures, pointing, and picture choices.",
+            "routines": ["meals", "transitions", "homework"],
+            "current_goal": "AAC support across school and home routines",
+        }
+        child.preferred_symbols = ["Water", "Help", "More", "All Done"]
+        db.add(child)
+        db.commit()
+    result = seed_demo_logs(child.id, db)
+    db.refresh(child)
+    return {"child": {
+        "id": child.id,
+        "name": child.name,
+        "age": child.age,
+        "behavior_profile": child.behavior_profile or {},
+        "preferred_symbols": child.preferred_symbols or [],
+    }, **result}

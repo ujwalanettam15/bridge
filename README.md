@@ -1,18 +1,18 @@
 # Bridge
 
-Bridge is an Augmentative and Alternative Communication (AAC) platform for parents of non-verbal and minimally verbal autistic children. It uses computer vision, audio processing, and AI to recognize what a child is trying to communicate through gestures, body language, and vocalizations — and helps families navigate administrative tasks like IEP requests and insurance appeals.
+Bridge is an evidence-to-action care agent for AAC families. It helps parents confirm communication moments, speak the phrase locally, turn those moments into a structured evidence timeline, research real AAC/IEP sources, draft a parent-review support packet, and coordinate care-team follow-up only after approval.
 
 ---
 
 ## What It Does
 
-- **Real-time intent recognition** — captures video frames, extracts pose and hand landmarks, and classifies communication intents using AI
-- **Adaptive behavior profiling** — learns each child's unique signals over time as parents confirm predictions
-- **AAC symbol board** — predicts and displays the most likely communication symbols based on context and profile
-- **Daily journal** — generates a parent-friendly summary of each day's communication
-- **Administrative automation** — files IEP requests and insurance appeals on behalf of families using an autonomous AI agent
-- **Therapist sync** — pushes session data to therapist webhooks for real-time collaboration
-- **Research portal** — answers questions about IEP rights, insurance appeals, therapy options, and state-specific guidance
+- **Live Session** — suggests intents and lets the parent confirm what the child meant
+- **Local AAC speech** — uses browser speech synthesis so the child phrase can be spoken immediately
+- **Live Agent Memory** — publishes confirmed moments and agent stages through Redis
+- **Evidence Timeline** — summarizes confirmed communication patterns parents can use in care conversations
+- **Care Agent** — uses TinyFish open-web automation to extract facts from school/AAC sources and draft an AAC/IEP packet
+- **Parent-approved follow-up** — syncs structured packet metadata through Nexla and prepares a Vapi care-team voice update only after approval
+- **Audit trail** — stores agent runs, sources, drafts, approvals, and sponsor statuses in Postgres through `DATABASE_URL`
 
 ---
 
@@ -49,9 +49,10 @@ Bridge is an Augmentative and Alternative Communication (AAC) platform for paren
 | Service | Purpose | Key |
 |---|---|---|
 | **OpenRouter** | Intent classification, symbol prediction, journal generation, research Q&A | `OPENROUTER_API_KEY` |
-| **VAPI** | Voice synthesis — speaks selected AAC symbols aloud | `VAPI_API_KEY` |
-| **TinyFish AI** | Autonomous agent that files IEP requests and insurance appeals | `TINYFISH_API_KEY` |
-| **Nexla** | Data flow platform — syncs session data to therapist webhooks | `NEXLA_API_KEY`, `NEXLA_FLOW_ID` |
+| **Vapi** | Parent-approved care-team voice update, not child TTS | `VAPI_API_KEY`, optional call config |
+| **TinyFish AI** | Open-web source extraction for AAC/IEP packet drafting | `TINYFISH_API_KEY` |
+| **Nexla Express** | Incoming Webhook source, Nexset generation, optional transforms/contracts, and delivery after approval | `NEXLA_INCOMING_WEBHOOK_URL` |
+| **Ghost/Postgres** | Agent audit store through the normal database URL | `DATABASE_URL` |
 
 ---
 
@@ -103,9 +104,13 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_REFERER=http://localhost:5173
 OPENROUTER_TITLE=Bridge AAC
 VAPI_API_KEY=
+VAPI_PHONE_NUMBER_ID=
+VAPI_ASSISTANT_ID=
+VAPI_CUSTOMER_NUMBER=
 TINYFISH_API_KEY=
-NEXLA_API_KEY=
-NEXLA_FLOW_ID=
+NEXLA_INCOMING_WEBHOOK_URL=
+NEXLA_EXPRESS_MCP_URL=https://veda-ai.nexla.io/mcp-express/
+NEXLA_AUTH_HEADER=
 DATABASE_URL=postgresql://postgres:bridge@localhost:5432/bridge
 REDIS_URL=redis://localhost:6379
 ```
@@ -174,9 +179,9 @@ bridge/
 │   │   │   ├── agents/
 │   │   │   │   └── journal_agent.py         # Daily journal generation
 │   │   │   └── integrations/
-│   │   │       ├── vapi.py                  # VAPI voice synthesis
-│   │   │       ├── tinyfish.py              # IEP & insurance appeal automation
-│   │   │       └── nexla.py                 # Therapist data sync
+│   │   │       ├── vapi.py                  # Parent-approved care-team voice updates
+│   │   │       ├── tinyfish.py              # Open-web AAC/IEP source extraction
+│   │   │       └── nexla.py                 # Nexla Express webhook delivery
 │   │   ├── alembic/                         # Database migrations
 │   │   └── requirements.txt
 │   └── web/
@@ -189,7 +194,7 @@ bridge/
 │               ├── SymbolBoard.jsx          # AAC symbol grid
 │               ├── SessionLog.jsx           # Past intent logs
 │               ├── Sidebar.jsx              # Navigation & child selection
-│               └── ResearchPortal.jsx       # IEP/insurance guidance
+│               └── ResearchPortal.jsx       # Care Agent packet workflow
 ├── infra/
 │   └── docker/
 │       └── Dockerfile.backend              # Chainguard hardened multi-stage build
@@ -215,11 +220,14 @@ Each child has a `behavior_profile` stored as JSON — confirmed intents, distin
 ### AAC Symbol Prediction
 `/predict-symbols` ranks 16 predefined symbols (Snack, Water, Bathroom, Tired, Play, etc.) by likelihood, factoring in the child's profile, recent session history, and time of day.
 
-### Administrative Automation
-`/iep-request` and `/insurance-appeal` invoke a TinyFish AI agent that autonomously navigates school district portals and insurance claim systems, populating forms with the child's profile data.
+### Care Agent
+`/actions/iep-agent-run` reads confirmed communication history, extracts source facts through TinyFish when configured, drafts a parent-review AAC/IEP support packet, and saves an `AgentRun` audit record. When TinyFish credentials are absent or flaky, the endpoint returns honest demo-mode source facts so the judge demo remains reliable.
 
 ### Daily Journal
 `/journal/{child_id}` aggregates the day's intent logs and uses OpenRouter to produce a warm, jargon-free summary for parents.
 
-### Therapist Sync
-`/sync-session` triggers a Nexla flow that pushes structured session data to any configured therapist webhook endpoint.
+### Parent-Approved Follow-Up
+`/actions/approve-care-followup` handles outbound action after parent approval. `nexla_sync` delivers structured packet metadata to a Nexla Express Incoming Webhook when `NEXLA_INCOMING_WEBHOOK_URL` is configured, or returns the prepared payload when it is not. `vapi_update` prepares or starts a care-team voice update through Vapi. Browser speech synthesis remains the local AAC voice for child-facing phrases.
+
+### Nexla Express Setup
+In Nexla, open **Integrate → Sources → Incoming Webhook** and create a webhook source for Bridge care packets. Let Nexla generate the source Nexset, optionally configure transforms/data contracts, then deliver the data to the chosen target. Put the generated incoming webhook URL in `.env` as `NEXLA_INCOMING_WEBHOOK_URL`.

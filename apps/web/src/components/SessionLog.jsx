@@ -172,7 +172,7 @@ function TherapistSummaryCard({ summary, onSync, syncLoading, syncResult, webhoo
   );
 }
 
-export default function SessionLog({ child }) {
+export default function SessionLog({ child, onNavigate, demoHighlight = "" }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
@@ -277,37 +277,55 @@ export default function SessionLog({ child }) {
     });
     const mostUsed = Object.entries(confirmedCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "None yet";
 
-    return { todayCount: todayLogs.length, topToday, mostUsed, recentPatterns: recentConfirmed.length };
+    const water = confirmed.filter(l => /water/i.test(l.confirmed_label)).length;
+    const help = confirmed.filter(l => /help/i.test(l.confirmed_label)).length;
+    const contextCounts = {};
+    confirmed.forEach(l => {
+      const ctx = l.context?.label || l.context?.name || "Session";
+      contextCounts[ctx] = (contextCounts[ctx] || 0) + 1;
+    });
+    const topContext = Object.entries(contextCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "None yet";
+    return { todayCount: todayLogs.length, topToday, mostUsed, recentPatterns: recentConfirmed.length, confirmedCount: confirmed.length, water, help, topContext };
   }, [logs]);
 
   return (
     <div className="session-log-page history-page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">History</h1>
-          <p className="page-sub">Parent-confirmed communication moments for {child.name}</p>
+          <h1 className="page-title">Evidence Timeline</h1>
+          <p className="page-sub">Parent-confirmed moments that become support-ready documentation for {child.name}</p>
         </div>
       </div>
 
-      <section className="history-summary history-summary-4">
+      <section className={`history-summary history-summary-4 ${demoHighlight === "timeline_summary" ? "demo-highlight" : ""}`}>
         <div>
-          <span className="history-kicker">Today</span>
-          <strong>{summary.todayCount}</strong>
-          <span className="history-sub">interactions</span>
+          <span className="history-kicker">This week</span>
+          <strong>{summary.confirmedCount}</strong>
+          <span className="history-sub">confirmed moments</span>
         </div>
         <div>
-          <span className="history-kicker">Top intent today</span>
-          <strong>{summary.topToday}</strong>
+          <span className="history-kicker">Water requests</span>
+          <strong>{summary.water}</strong>
         </div>
         <div>
-          <span className="history-kicker">Most confirmed</span>
-          <strong>{summary.mostUsed}</strong>
+          <span className="history-kicker">Help requests</span>
+          <strong>{summary.help}</strong>
         </div>
         <div>
-          <span className="history-kicker">Patterns (7 days)</span>
-          <strong>{summary.recentPatterns}</strong>
-          <span className="history-sub">confirmed</span>
+          <span className="history-kicker">Common context</span>
+          <strong>{summary.topContext}</strong>
         </div>
+      </section>
+
+      <section className={`pattern-detected-card ${demoHighlight === "timeline_pattern" ? "demo-highlight" : ""}`}>
+        <div>
+          <span className="history-kicker">Pattern detected</span>
+          <h2>Repeated communication access needs during daily routines.</h2>
+          <p>Bridge turns daily caregiving moments into structured evidence for school and therapy conversations.</p>
+        </div>
+        <button className="btn-action" onClick={() => onNavigate?.("research")}>
+          Draft AAC/IEP Support Packet
+        </button>
       </section>
 
       <section className="journal-card">
@@ -336,7 +354,7 @@ export default function SessionLog({ child }) {
       </section>
 
       <section className="sessions-card">
-        <h2 className="card-title">Event timeline</h2>
+        <h2 className="card-title">Parent-Confirmed Moments</h2>
         {loading ? (
           <div className="skeleton-lines">
             {[1, 2, 3].map(i => <div key={i} className="skeleton-line" />)}

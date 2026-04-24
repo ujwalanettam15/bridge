@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.core.env import load_bridge_env
+
+load_bridge_env()
 
 from app.routers import intent, sessions, children, research, actions
 from app.core.database import init_db

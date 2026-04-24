@@ -1,8 +1,9 @@
 import redis.asyncio as aioredis
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.core.env import load_bridge_env
+
+load_bridge_env()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 

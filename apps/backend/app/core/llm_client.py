@@ -2,6 +2,10 @@ import os
 
 import openai
 
+from app.core.env import load_bridge_env
+
+load_bridge_env()
+
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

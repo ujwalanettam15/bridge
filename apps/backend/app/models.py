@@ -34,3 +34,21 @@ class IntentLog(Base):
     confirmed_label = Column(String)
     confirmed_at = Column(DateTime)
     spoken_phrase = Column(String)
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    child_id = Column(String, ForeignKey("children.id"))
+    action_type = Column(String)
+    status = Column(String)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    source_urls = Column(JSON, default=[])
+    sources = Column(JSON, default=[])
+    extracted_facts = Column(JSON, default=[])
+    draft = Column(JSON, default={})
+    pattern_summary = Column(JSON, default={})
+    agent_steps = Column(JSON, default=[])
+    sponsor_statuses = Column(JSON, default={})
+    approvals = Column(JSON, default={})

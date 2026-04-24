@@ -36,6 +36,15 @@ function normalizeIntent(intent) {
   };
 }
 
+function normalizeObjectDetection(item) {
+  return {
+    label: item.label || "object",
+    confidence: item.confidence ?? 0,
+    box: item.box || { x: 0, y: 0, w: 0, h: 0 },
+    cue: item.cue || "",
+  };
+}
+
 function phraseForIntent(label) {
   const cleaned = label.replace(/^wants?\s+/i, "I want ");
   if (/^i\s/i.test(cleaned)) return cleaned;
@@ -51,7 +60,7 @@ function speakAloud(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-export default function ParentView({ child, sessionContext, onContextChange }) {
+export default function ParentView({ child, sessionContext, onContextChange, demoCommand, demoHighlight = "" }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
@@ -66,6 +75,9 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
   const [confirming, setConfirming] = useState("");
   const [confirmed, setConfirmed] = useState("");
   const [speaking, setSpeaking] = useState("");
+  const [agentEvents, setAgentEvents] = useState([]);
+  const [detectedObjects, setDetectedObjects] = useState([]);
+  const [visionStatus, setVisionStatus] = useState("idle");
 
   useEffect(() => {
     contextRef.current = sessionContext;
@@ -78,8 +90,38 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
 
   useEffect(() => () => stopSession(), []);
 
+  useEffect(() => {
+    let cancelled = false;
+    function loadEvents() {
+      api.getAgentEvents(child.id)
+        .then(result => {
+          if (!cancelled) setAgentEvents(result.events || []);
+        })
+        .catch(() => {});
+    }
+    loadEvents();
+    const timer = setInterval(loadEvents, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [child.id]);
+
+  useEffect(() => {
+    if (!demoCommand) return;
+    const topIntent = intents[0] || MOCK_INTENTS[0];
+    if (demoCommand.type === "speak_top_intent") {
+      handleSpeak(topIntent);
+    }
+    if (demoCommand.type === "confirm_top_intent") {
+      handleConfirm(topIntent);
+    }
+  }, [demoCommand?.id]);
+
   async function startSession() {
     setError("");
+    setDetectedObjects([]);
+    setVisionStatus("starting camera");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoRef.current.srcObject = stream;
@@ -95,6 +137,7 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
         const data = JSON.parse(e.data);
         if (data.intents?.length) {
           setIntents(data.intents.map(normalizeIntent));
+          setDetectedObjects((data.detected_objects || []).map(normalizeObjectDetection));
           if (data.intent_log_id) setIntentLogId(data.intent_log_id);
           setElapsed(0);
         }
@@ -102,28 +145,35 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
     };
     wsRef.current = ws;
 
-    intervalRef.current = setInterval(async () => {
+    async function runInferenceFrame() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
+      if (video.readyState < 2) return;
       const ctx = canvas.getContext("2d");
       canvas.width = 320;
       canvas.height = 240;
       ctx.drawImage(video, 0, 0, 320, 240);
       const frameB64 = canvas.toDataURL("image/jpeg", 0.6).split(",")[1];
       try {
+        setVisionStatus("checking frame");
         const result = await api.infer(child.id, frameB64, "", contextRef.current);
+        setVisionStatus("frame checked");
+        setDetectedObjects((result.detected_objects || []).map(normalizeObjectDetection));
         if (result.intents?.length) {
           setIntents(result.intents.map(normalizeIntent));
           if (result.intent_log_id) setIntentLogId(result.intent_log_id);
           setElapsed(0);
         }
       } catch {
+        setVisionStatus("backend not reachable");
         setIntents(MOCK_INTENTS);
       }
-    }, 2000);
+    }
 
     setActive(true);
+    setTimeout(runInferenceFrame, 250);
+    intervalRef.current = setInterval(runInferenceFrame, 1400);
   }
 
   function stopSession() {
@@ -133,18 +183,19 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
       videoRef.current.srcObject.getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
     }
+    setDetectedObjects([]);
+    setVisionStatus("idle");
     setActive(false);
   }
 
   async function handleConfirm(intent) {
-    if (!intentLogId) {
-      setError("Run one inference first so Bridge can save this communication attempt.");
-      return;
-    }
     setError("");
     setConfirming(intent.label);
     try {
-      await api.confirmIntent(child.id, intentLogId, intent.label);
+      const result = intentLogId
+        ? await api.confirmIntent(child.id, intentLogId, intent.label)
+        : await api.demoConfirmIntent(child.id, intent.label, contextRef.current, intent.confidence ?? 0.74);
+      if (result.intent_log_id) setIntentLogId(result.intent_log_id);
       setConfirmed(intent.label);
       setTimeout(() => setConfirmed(""), 2400);
     } catch {
@@ -169,14 +220,14 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
 
   return (
     <div className="parent-view">
-      <div className="page-header">
+      <div className={`page-header ${demoHighlight === "profile" ? "demo-highlight" : ""}`}>
         <div>
           <h1 className="page-title">Live Session</h1>
           <p className="page-sub">Review suggestions and speak for {child.name}</p>
         </div>
       </div>
 
-      <div className="context-strip">
+      <div className={`context-strip ${demoHighlight === "context" ? "demo-highlight" : ""}`}>
         <div className="context-label">Context</div>
         <div className="context-buttons">
           {CONTEXTS.map(context => (
@@ -193,6 +244,24 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
 
       <div className="camera-preview-lg">
         <video ref={videoRef} muted playsInline className={active ? "" : "hidden"} />
+        {active && (
+          <div className="object-overlay" aria-hidden="true">
+            {detectedObjects.map((object, i) => (
+              <div
+                key={`${object.label}-${i}`}
+                className={`object-box object-${object.label.replace(/\s+/g, "-")}`}
+                style={{
+                  left: `${object.box.x * 100}%`,
+                  top: `${object.box.y * 100}%`,
+                  width: `${object.box.w * 100}%`,
+                  height: `${object.box.h * 100}%`,
+                }}
+              >
+                <span>{object.label} {Math.round(object.confidence * 100)}%</span>
+              </div>
+            ))}
+          </div>
+        )}
         {!active && (
           <div className="camera-placeholder-overlay">
             <p>Camera is off</p>
@@ -207,13 +276,28 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
         )}
       </div>
 
+      <div className="object-detection-strip">
+        <span className="object-strip-label">Visual cues</span>
+        {active && detectedObjects.length > 0 ? (
+          detectedObjects.map((object, i) => (
+            <span key={`${object.label}-chip-${i}`} className="object-chip">
+              {object.label} · {Math.round(object.confidence * 100)}%
+            </span>
+          ))
+        ) : (
+          <span className="object-chip muted">
+            {active ? `${visionStatus}; watching for gray bottle or black hat` : "start camera to detect props"}
+          </span>
+        )}
+      </div>
+
       {error && <p className="error-msg">{error}</p>}
       {confirmed && (
         <div className="success-msg">Saved for future suggestions.</div>
       )}
 
       <div className="intent-heading">
-        <h2>Possible intents</h2>
+        <h2>Suggested Intent</h2>
         <span className="last-updated">Last updated: {elapsed}s ago</span>
       </div>
 
@@ -225,7 +309,7 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
         {intents.map((intent, i) => {
           const isTop = i === 0;
           return (
-          <div key={i} className={`intent-row-lg ${isTop ? "top-intent" : "secondary-intent"}`}>
+          <div key={i} className={`intent-row-lg ${isTop ? "top-intent" : "secondary-intent"} ${isTop && demoHighlight === "top_intent" ? "demo-highlight" : ""}`}>
             <div className="intent-row-top">
               <span className="intent-label-lg">{intent.label}</span>
               <span className="intent-pct-lg" style={{ color: BAR_COLORS[i] }}>
@@ -272,6 +356,25 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
           Parents and therapists remain in control of all decisions.
         </p>
       </div>
+
+      <section className={`live-memory-panel ${demoHighlight === "memory" ? "demo-highlight" : ""}`}>
+        <div className="live-memory-header">
+          <span>Live Agent Memory</span>
+          <small>Redis event stream</small>
+        </div>
+        <div className="live-memory-list">
+          {agentEvents.length === 0 ? (
+            <div className="live-memory-empty">Confirm a moment to stream evidence events here.</div>
+          ) : (
+            agentEvents.slice(0, 5).map((event, i) => (
+              <div key={`${event.timestamp}-${i}`} className="live-memory-event">
+                <span className="memory-dot" />
+                <span>{event.message}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 }
