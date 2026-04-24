@@ -1,10 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-import openai
+from app.core.llm_client import chat_model, client, llm_configured
 
 router = APIRouter(prefix="/research", tags=["research"])
-
-client = openai.AsyncOpenAI()
 
 RESEARCH_SYSTEM = """You are a knowledgeable AAC advocate and resource specialist helping parents of non-verbal children navigate insurance, IEP processes, school systems, and therapy options.
 
@@ -31,13 +29,25 @@ async def ask_research(payload: ResearchQuery):
     if payload.state:
         context += f"State: {payload.state}. "
 
-    response = await client.chat.completions.create(
-        model="gpt-4o",
-        max_tokens=800,
-        messages=[
-            {"role": "system", "content": RESEARCH_SYSTEM},
-            {"role": "user", "content": f"{context}{payload.question}"},
-        ],
+    fallback = (
+        "Demo guidance: document the communication need, request an AAC evaluation in writing, "
+        "ask for assistive technology supports in the IEP meeting, and keep copies of every request. "
+        "For insurance, ask the clinician for a letter of medical necessity and appeal with the denial reason addressed directly."
     )
+
+    if not llm_configured():
+        return {"answer": fallback}
+
+    try:
+        response = await client.chat.completions.create(
+            model=chat_model(),
+            max_tokens=800,
+            messages=[
+                {"role": "system", "content": RESEARCH_SYSTEM},
+                {"role": "user", "content": f"{context}{payload.question}"},
+            ],
+        )
+    except Exception:
+        return {"answer": fallback}
 
     return {"answer": response.choices[0].message.content}

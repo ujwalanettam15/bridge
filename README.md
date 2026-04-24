@@ -26,7 +26,7 @@ Bridge is an Augmentative and Alternative Communication (AAC) platform for paren
 | Database | PostgreSQL 15 (SQLAlchemy 2.0, Alembic) |
 | Cache / Pub-Sub | Redis 7 |
 | Computer Vision | MediaPipe 0.10 (pose, hand, face landmarks) |
-| AI / LLM | OpenAI SDK 1.51 — GPT-4o, Whisper |
+| AI / LLM | OpenRouter via OpenAI-compatible SDK |
 | Async HTTP | httpx |
 | Config | python-dotenv, Pydantic v2 |
 
@@ -48,8 +48,7 @@ Bridge is an Augmentative and Alternative Communication (AAC) platform for paren
 
 | Service | Purpose | Key |
 |---|---|---|
-| **OpenAI** (GPT-4o) | Intent classification, symbol prediction, journal generation, research Q&A | `OPENAI_API_KEY` |
-| **OpenAI Whisper** | Audio transcription from video sessions | `OPENAI_API_KEY` |
+| **OpenRouter** | Intent classification, symbol prediction, journal generation, research Q&A | `OPENROUTER_API_KEY` |
 | **VAPI** | Voice synthesis — speaks selected AAC symbols aloud | `VAPI_API_KEY` |
 | **TinyFish AI** | Autonomous agent that files IEP requests and insurance appeals | `TINYFISH_API_KEY` |
 | **Nexla** | Data flow platform — syncs session data to therapist webhooks | `NEXLA_API_KEY`, `NEXLA_FLOW_ID` |
@@ -57,6 +56,31 @@ Bridge is an Augmentative and Alternative Communication (AAC) platform for paren
 ---
 
 ## Running Locally
+
+### One-command dev server
+
+From the repo root:
+
+```bash
+npm run dev
+```
+
+This starts:
+
+- Backend: `http://127.0.0.1:8000`
+- Frontend: `http://127.0.0.1:5173`
+
+The same command works on Windows and macOS. On macOS, the runner uses `python3` by default. If your Python command is different, run:
+
+```bash
+PYTHON=/path/to/python npm run dev
+```
+
+You can also build the frontend from the repo root:
+
+```bash
+npm run build
+```
 
 ### Prerequisites
 - Docker and docker-compose
@@ -73,7 +97,11 @@ cp .env.example .env
 
 `.env.example`:
 ```
-OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openrouter/free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_REFERER=http://localhost:5173
+OPENROUTER_TITLE=Bridge AAC
 VAPI_API_KEY=
 TINYFISH_API_KEY=
 NEXLA_API_KEY=
@@ -139,8 +167,8 @@ bridge/
 │   │   │   │   └── research.py          # Research/guidance AI endpoint
 │   │   │   ├── ml/
 │   │   │   │   ├── mediapipe_processor.py   # Pose & hand landmark extraction
-│   │   │   │   ├── audio_processor.py       # Whisper audio transcription
-│   │   │   │   ├── intent_reasoner.py       # GPT-4o intent classification
+│   │   │   │   ├── audio_processor.py       # Optional audio transcript hook
+│   │   │   │   ├── intent_reasoner.py       # OpenRouter intent classification
 │   │   │   │   ├── symbol_predictor.py      # AAC symbol ranking
 │   │   │   │   └── profile_updater.py       # Behavioral profile updates
 │   │   │   ├── agents/
@@ -176,8 +204,8 @@ bridge/
 ### Intent Inference Pipeline
 Each inference request (`POST /infer`) processes a video frame through three stages:
 1. MediaPipe extracts 33 pose landmarks and up to 21 hand landmarks per hand
-2. OpenAI Whisper optionally transcribes any audio in the clip
-3. GPT-4o classifies the intent using the landmark vectors, transcript, and the child's behavioral profile
+2. Audio transcription is currently optional and returns a no-op fallback until a speech-to-text provider is added
+3. OpenRouter classifies the intent using the landmark vectors, context, and the child's behavioral profile
 
 A WebSocket endpoint (`/ws/intent/{child_id}`) streams live predictions as frames are captured every two seconds.
 
@@ -191,7 +219,7 @@ Each child has a `behavior_profile` stored as JSON — confirmed intents, distin
 `/iep-request` and `/insurance-appeal` invoke a TinyFish AI agent that autonomously navigates school district portals and insurance claim systems, populating forms with the child's profile data.
 
 ### Daily Journal
-`/journal/{child_id}` aggregates the day's intent logs and uses GPT-4o to produce a warm, jargon-free summary for parents.
+`/journal/{child_id}` aggregates the day's intent logs and uses OpenRouter to produce a warm, jargon-free summary for parents.
 
 ### Therapist Sync
 `/sync-session` triggers a Nexla flow that pushes structured session data to any configured therapist webhook endpoint.

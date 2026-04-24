@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from datetime import datetime
 
 from app.integrations import vapi, tinyfish, nexla
 from app.models import Child, Session, IntentLog
@@ -20,6 +21,8 @@ class SpeakRequest(BaseModel):
 class IEPRequest(BaseModel):
     child_id: str
     school_district: str
+    grade: str = ""
+    disability: str = "Autism Spectrum Disorder"
 
 
 class InsuranceAppealRequest(BaseModel):
@@ -35,6 +38,7 @@ class SyncSessionRequest(BaseModel):
 
 class SymbolPredictRequest(BaseModel):
     child_id: str
+    context: dict = {}
 
 
 class ConfirmIntentRequest(BaseModel):
@@ -58,7 +62,12 @@ async def file_iep(payload: IEPRequest, db=Depends(get_db)):
     if not child:
         raise HTTPException(status_code=404, detail="Child not found")
     result = await tinyfish.file_iep_request(
-        {"name": child.name, "age": child.age},
+        {
+            "name": child.name,
+            "age": child.age,
+            "grade": payload.grade,
+            "disability_category": payload.disability,
+        },
         payload.school_district,
     )
     return result
@@ -122,6 +131,7 @@ async def get_predicted_symbols(payload: SymbolPredictRequest, db=Depends(get_db
         payload.child_id,
         child.behavior_profile or {},
         recent_intents,
+        payload.context,
     )
     return {"symbols": symbols}
 
@@ -143,4 +153,13 @@ def confirm_intent(payload: ConfirmIntentRequest, db=Depends(get_db)):
         log.audio_transcript or "",
         db,
     )
-    return {"status": "profile updated"}
+    log.confirmed_label = payload.confirmed_label
+    log.confirmed_at = datetime.utcnow()
+    db.add(log)
+    db.commit()
+    db.refresh(child)
+    return {
+        "status": "profile updated",
+        "confirmed_label": payload.confirmed_label,
+        "behavior_profile": child.behavior_profile or {},
+    }

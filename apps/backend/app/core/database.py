@@ -5,9 +5,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bridge@localhost:5432/bridge")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bridge_demo.db")
 
-engine = create_engine(DATABASE_URL)
+try:
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    )
+except ModuleNotFoundError:
+    DATABASE_URL = "sqlite:///./bridge_demo.db"
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

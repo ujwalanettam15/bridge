@@ -5,6 +5,7 @@ building a personalized signal→intent map over time.
 """
 from app.models import Child, IntentLog
 from datetime import datetime, timedelta
+from sqlalchemy.orm.attributes import flag_modified
 
 
 def update_profile_from_confirmed_intent(
@@ -14,7 +15,7 @@ def update_profile_from_confirmed_intent(
     audio_transcript: str,
     db,
 ) -> None:
-    profile = child.behavior_profile or {}
+    profile = dict(child.behavior_profile or {})
 
     # Track how many times each intent has been confirmed
     confirmed = profile.setdefault("confirmed_intents", {})
@@ -33,6 +34,7 @@ def update_profile_from_confirmed_intent(
     hand_signals[intent_label] = gesture_vector.get("has_hand", False)
 
     child.behavior_profile = profile
+    flag_modified(child, "behavior_profile")
     db.add(child)
     db.commit()
 
@@ -46,7 +48,11 @@ def get_recent_intents(child_id: str, minutes: int, db) -> list:
         .all()
     )
     return [
-        {"label": i["label"], "probability": i["probability"], "timestamp": log.timestamp.isoformat()}
+        {
+            "label": i["label"],
+            "confidence": i.get("confidence", i.get("probability", 0)),
+            "timestamp": log.timestamp.isoformat(),
+        }
         for log in logs
         if log.ranked_intents
         for i in log.ranked_intents[:1]  # top intent per log entry

@@ -1,36 +1,75 @@
 import { useEffect, useRef, useState } from "react";
 import { api, WS_BASE } from "../api";
 
+const CONTEXTS = [
+  { name: "mealtime", label: "Mealtime" },
+  { name: "bedtime", label: "Bedtime" },
+  { name: "school", label: "School" },
+  { name: "therapy", label: "Therapy" },
+];
+
 const MOCK_INTENTS = [
   {
-    label: "Wants Snack",
+    label: "I want water",
     confidence: 0.73,
-    explanation: "Repeated pointing gesture toward kitchen area with vocalizations",
+    explanation: "Mealtime context plus a repeated reaching pattern that has matched drink requests before.",
   },
   {
-    label: "Tired",
+    label: "I need a break",
     confidence: 0.18,
-    explanation: "Head drooping, reduced eye contact, slow movement patterns",
+    explanation: "Body posture suggests possible frustration or fatigue.",
   },
   {
-    label: "Wants to Play",
+    label: "I want more",
     confidence: 0.09,
-    explanation: "Arm reaching toward toy shelf with excited vocalizations",
+    explanation: "Recent mealtime choices make another serving possible.",
   },
 ];
 
 const BAR_COLORS = ["#10b981", "#f59e0b", "#94a3b8"];
 
-export default function ParentView({ child }) {
+function normalizeIntent(intent) {
+  return {
+    ...intent,
+    confidence: intent.confidence ?? intent.probability ?? 0,
+    explanation: intent.explanation ?? "",
+  };
+}
+
+function phraseForIntent(label) {
+  const cleaned = label.replace(/^wants?\s+/i, "I want ");
+  if (/^i\s/i.test(cleaned)) return cleaned;
+  return `I want to say: ${cleaned}`;
+}
+
+function speakAloud(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.pitch = 1.1;
+  window.speechSynthesis.speak(utterance);
+}
+
+export default function ParentView({ child, sessionContext, onContextChange }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
   const intervalRef = useRef(null);
+  const contextRef = useRef(sessionContext);
 
   const [active, setActive] = useState(false);
   const [intents, setIntents] = useState(MOCK_INTENTS);
+  const [intentLogId, setIntentLogId] = useState(null);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [confirming, setConfirming] = useState("");
+  const [confirmed, setConfirmed] = useState("");
+  const [speaking, setSpeaking] = useState("");
+
+  useEffect(() => {
+    contextRef.current = sessionContext;
+  }, [sessionContext]);
 
   useEffect(() => {
     const tick = setInterval(() => setElapsed(s => s + 1), 1000);
@@ -55,7 +94,8 @@ export default function ParentView({ child }) {
       try {
         const data = JSON.parse(e.data);
         if (data.intents?.length) {
-          setIntents(data.intents.map(i => ({ ...i, explanation: "" })));
+          setIntents(data.intents.map(normalizeIntent));
+          if (data.intent_log_id) setIntentLogId(data.intent_log_id);
           setElapsed(0);
         }
       } catch {}
@@ -72,12 +112,15 @@ export default function ParentView({ child }) {
       ctx.drawImage(video, 0, 0, 320, 240);
       const frameB64 = canvas.toDataURL("image/jpeg", 0.6).split(",")[1];
       try {
-        const result = await api.infer(child.id, frameB64);
+        const result = await api.infer(child.id, frameB64, "", contextRef.current);
         if (result.intents?.length) {
-          setIntents(result.intents.map(i => ({ ...i, explanation: "" })));
+          setIntents(result.intents.map(normalizeIntent));
+          if (result.intent_log_id) setIntentLogId(result.intent_log_id);
           setElapsed(0);
         }
-      } catch {}
+      } catch {
+        setIntents(MOCK_INTENTS);
+      }
     }, 2000);
 
     setActive(true);
@@ -93,12 +136,61 @@ export default function ParentView({ child }) {
     setActive(false);
   }
 
+  async function handleConfirm(intent) {
+    if (!intentLogId) {
+      setError("Run one inference first so Bridge can save this communication attempt.");
+      return;
+    }
+    setError("");
+    setConfirming(intent.label);
+    try {
+      await api.confirmIntent(child.id, intentLogId, intent.label);
+      setConfirmed(intent.label);
+      setTimeout(() => setConfirmed(""), 2400);
+    } catch {
+      setError("Could not save the confirmation. Check the backend connection and try again.");
+    } finally {
+      setConfirming("");
+    }
+  }
+
+  async function handleSpeak(intent) {
+    const phrase = phraseForIntent(intent.label);
+    setSpeaking(intent.label);
+    speakAloud(phrase);
+    try {
+      await api.speak(phrase, child.id);
+    } catch {
+      // Browser speech already handled the demo-critical output.
+    } finally {
+      setTimeout(() => setSpeaking(""), 1200);
+    }
+  }
+
   return (
     <div className="parent-view">
       <div className="page-header">
         <div>
           <h1 className="page-title">Parent View</h1>
-          <p className="page-sub">Real-time intent readout for {child.name}</p>
+          <p className="page-sub">Real-time intent suggestions for {child.name}</p>
+        </div>
+      </div>
+
+      <div className="context-strip">
+        <div>
+          <div className="context-label">Current context</div>
+          <div className="context-help">Bridge uses this to rank possible communication choices.</div>
+        </div>
+        <div className="context-buttons">
+          {CONTEXTS.map(context => (
+            <button
+              key={context.name}
+              className={`context-btn ${sessionContext?.name === context.name ? "active" : ""}`}
+              onClick={() => onContextChange(context)}
+            >
+              {context.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -120,9 +212,14 @@ export default function ParentView({ child }) {
       </div>
 
       {error && <p className="error-msg">{error}</p>}
+      {confirmed && (
+        <div className="success-msg">
+          Saved confirmation: {confirmed}. Bridge will use this pattern in future suggestions.
+        </div>
+      )}
 
       <div className="intent-heading">
-        <h2>What they're saying right now:</h2>
+        <h2>Possible communication choices</h2>
         <span className="last-updated">Last updated: {elapsed}s ago</span>
       </div>
 
@@ -147,9 +244,29 @@ export default function ParentView({ child }) {
             {intent.explanation && (
               <p className="intent-explanation">{intent.explanation}</p>
             )}
+            <div className="intent-actions">
+              <button
+                className="btn-confirm"
+                onClick={() => handleConfirm(intent)}
+                disabled={confirming === intent.label}
+              >
+                {confirming === intent.label ? "Saving..." : "Confirm"}
+              </button>
+              <button
+                className="btn-speak"
+                onClick={() => handleSpeak(intent)}
+                disabled={speaking === intent.label}
+              >
+                {speaking === intent.label ? "Speaking..." : "Speak"}
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      <p className="safety-note">
+        Bridge suggests possibilities for parent review. It does not diagnose or replace clinical judgment.
+      </p>
     </div>
   );
 }

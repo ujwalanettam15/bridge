@@ -5,6 +5,13 @@ VAPI_BASE = "https://api.vapi.ai"
 
 
 async def speak_symbol(phrase: str, child_voice_id: str = None):
+    if not os.getenv("VAPI_API_KEY"):
+        return {
+            "status": "demo_mode",
+            "message": "Vapi API key not configured; browser speech synthesis handled local playback.",
+            "phrase": phrase,
+        }
+
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{VAPI_BASE}/call/web",

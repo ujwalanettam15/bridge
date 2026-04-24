@@ -709,6 +709,63 @@ input, textarea, select { font-family: inherit; }
   border: 1px solid var(--border);
 }
 
+.suggested-symbols {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.suggested-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.suggested-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.suggested-header span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.suggested-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.suggested-card {
+  min-height: 140px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.suggested-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+}
+
+.suggested-reason {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .symbol-grid-4x4 {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -747,6 +804,53 @@ input, textarea, select { font-family: inherit; }
 /* ─── Parent View ─────────────────────────────────── */
 
 .parent-view { padding: 28px; }
+
+.context-strip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.context-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.context-help {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.context-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.context-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.context-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
 
 .camera-preview-lg {
   width: 100%;
@@ -866,10 +970,62 @@ input, textarea, select { font-family: inherit; }
   line-height: 1.4;
 }
 
+.intent-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.btn-confirm,
+.btn-speak {
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.btn-confirm {
+  background: var(--success);
+  color: #fff;
+}
+
+.btn-confirm:hover:not(:disabled) { background: #059669; }
+
+.btn-speak {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.btn-speak:hover:not(:disabled) { background: #ddd6fe; }
+
+.btn-confirm:disabled,
+.btn-speak:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .error-msg {
   color: var(--danger);
   font-size: 0.85rem;
   margin-bottom: 12px;
+}
+
+.success-msg {
+  color: #14532d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.safety-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 16px;
+  line-height: 1.5;
 }
 
 /* ─── Session Log ─────────────────────────────────── */

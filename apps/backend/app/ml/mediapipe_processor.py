@@ -1,16 +1,27 @@
-import mediapipe as mp
 import base64
-import cv2
-import numpy as np
-
-mp_holistic = mp.solutions.holistic
 
 
 async def extract_gesture_vector(frame_b64: str) -> dict:
+    try:
+        import cv2
+        import mediapipe as mp
+        import numpy as np
+    except ImportError:
+        return {
+            "landmarks": [],
+            "has_hand": False,
+            "demo_mode": True,
+            "note": "MediaPipe/OpenCV dependencies are not installed in this environment.",
+        }
+
     img_bytes = base64.b64decode(frame_b64)
     img_array = np.frombuffer(img_bytes, np.uint8)
     frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
+    if frame is None:
+        return {"landmarks": [], "has_hand": False}
+
+    mp_holistic = mp.solutions.holistic
     with mp_holistic.Holistic(static_image_mode=True) as holistic:
         results = holistic.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 

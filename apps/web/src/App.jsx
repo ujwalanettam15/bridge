@@ -12,6 +12,7 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [child, setChild] = useState(null);
   const [children, setChildren] = useState([]);
+  const [sessionContext, setSessionContext] = useState({ name: "mealtime", label: "Mealtime" });
 
   useEffect(() => {
     api.listChildren().then(list => {
@@ -48,8 +49,8 @@ export default function App() {
         ) : (
           <>
             {page === "dashboard" && <Dashboard child={child} onNavigate={setPage} />}
-            {page === "symbols"   && <SymbolBoard child={child} />}
-            {page === "parent"    && <ParentView child={child} />}
+            {page === "symbols"   && <SymbolBoard child={child} sessionContext={sessionContext} />}
+            {page === "parent"    && <ParentView child={child} sessionContext={sessionContext} onContextChange={setSessionContext} />}
             {page === "sessions"  && <SessionLog child={child} />}
             {page === "research"  && <ResearchPortal child={child} />}
           </>

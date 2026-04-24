@@ -1,7 +1,8 @@
 """
 Standalone test for intent_reasoner — run before wiring up the full stack.
 Usage: python scripts/test_intent_reasoner.py
-Requires: ANTHROPIC_API_KEY in environment or .env file
+    Requires: OPENROUTER_API_KEY in environment or .env file for live mode.
+    Without a key, the intent reasoner returns deterministic demo results.
 """
 import asyncio
 import sys
@@ -32,7 +33,7 @@ async def main():
     result = await classify_intent(gesture, audio, MockChild(), context)
     print("Intent classification result:")
     for intent in result["intents"]:
-        print(f"  {intent['label']}: {intent['probability']:.0%} — {intent['explanation']}")
+        print(f"  {intent['label']}: {intent['confidence']:.0%} — {intent['explanation']}")
 
 
 if __name__ == "__main__":
