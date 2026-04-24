@@ -64,6 +64,17 @@ export const api = {
       body: JSON.stringify({ child_id: childId, insurance_provider: insuranceProvider, denial_reason: denialReason }),
     }).then(asJson),
 
+  searchTherapists: (childId, zipCode, insuranceProvider = "") =>
+    fetch(`${BASE}/actions/therapist-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        child_id: childId,
+        zip_code: zipCode,
+        insurance_provider: insuranceProvider,
+      }),
+    }).then(asJson),
+
   askResearch: (question, childAge, state) =>
     fetch(`${BASE}/research/ask`, {
       method: "POST",

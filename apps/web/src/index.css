@@ -1237,6 +1237,16 @@ input, textarea, select { font-family: inherit; }
 .action-form-card form { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; }
 .action-form-card > .btn-action { display: block; margin: 0 18px 18px; }
 
+.review-notice {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 .form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-field label { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .form-field input {
@@ -1325,10 +1335,312 @@ input, textarea, select { font-family: inherit; }
 }
 .tf-detail { margin-bottom: 4px; }
 .tf-meta   { color: inherit; opacity: 0.65; font-size: 0.75rem; margin-top: 4px; }
+.tf-parent-control {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.55);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
 
 .tf-steps { margin-top: 8px; font-size: 0.78rem; }
 .tf-steps summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
 .tf-steps ol { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+
+/* ─── Agent activity log ──────────────────────────── */
+
+.agent-workflow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.agent-activity-log {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+}
+
+.agent-log-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.agent-log-title {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.agent-log-done-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--success-light);
+  color: #065f46;
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.agent-log-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+}
+
+.agent-log-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  transition: color 0.2s;
+}
+
+.agent-log-step.done {
+  color: var(--text);
+}
+
+.agent-log-step.active {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.step-icon {
+  font-size: 0.75rem;
+  width: 14px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.agent-log-step.done .step-icon { color: var(--success); }
+.agent-log-step.active .step-icon { color: var(--primary); }
+
+.agent-log-footer {
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* ─── Draft card ──────────────────────────────────── */
+
+.draft-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.draft-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+}
+
+.draft-label {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #065f46;
+}
+
+.demo-mode-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 10px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.draft-subject-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.draft-subject-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.draft-subject {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.draft-section {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.draft-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.draft-body-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.draft-body {
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.btn-copy-draft {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 10px 14px;
+  padding: 7px 0;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.btn-copy-draft:hover { background: #bfdbfe; }
+
+.draft-rationale {
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.draft-next-steps {
+  background: #f8fafc;
+}
+
+.draft-next-steps-list {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.draft-next-steps-list li {
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.draft-card-footer {
+  border-top: 1px solid var(--border);
+  padding: 2px 0 4px;
+}
+
+/* ─── Therapist demo result ───────────────────────── */
+
+.therapist-demo-result {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.therapist-demo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #065f46;
+}
+
+.therapist-demo-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.resource-result-message {
+  padding: 10px 14px;
+  background: #f8fafc;
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border);
+}
+
+.therapist-demo-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.therapist-demo-item:last-child { border-bottom: none; }
+
+.therapist-demo-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.therapist-demo-specialty {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.therapist-demo-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 0.75rem;
+}
+
+.therapist-demo-distance {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.therapist-demo-insurance {
+  color: var(--muted);
+}
+
+.therapist-demo-note {
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+}
 
 /* ─── Form error ──────────────────────────────────── */
 
@@ -1693,5 +2005,17 @@ input, textarea, select { font-family: inherit; }
   .research-portal,
   .session-log-page {
     padding: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .draft-card-header,
+  .therapist-demo-header,
+  .agent-log-header {
+    flex-wrap: wrap;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
   }
 }

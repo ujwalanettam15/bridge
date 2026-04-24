@@ -51,6 +51,12 @@ class TherapistSyncRequest(BaseModel):
     therapist_webhook: str = ""
 
 
+class TherapistSearchRequest(BaseModel):
+    child_id: str
+    zip_code: str
+    insurance_provider: str = ""
+
+
 @router.post("/speak")
 async def speak_symbol(payload: SpeakRequest, db=Depends(get_db)):
     child = db.query(Child).filter(Child.id == payload.child_id).first()
@@ -86,6 +92,19 @@ async def appeal_insurance(payload: InsuranceAppealRequest, db=Depends(get_db)):
         {"name": child.name, "age": child.age},
         payload.insurance_provider,
         payload.denial_reason,
+    )
+    return result
+
+
+@router.post("/therapist-search")
+async def therapist_search(payload: TherapistSearchRequest, db=Depends(get_db)):
+    child = db.query(Child).filter(Child.id == payload.child_id).first()
+    if not child:
+        raise HTTPException(status_code=404, detail="Child not found")
+    result = await tinyfish.search_therapists(
+        {"name": child.name, "age": child.age},
+        payload.zip_code,
+        payload.insurance_provider,
     )
     return result
 
