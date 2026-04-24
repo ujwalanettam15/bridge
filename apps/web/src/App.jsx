@@ -47,7 +47,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            {page === "symbols"   && <SymbolBoard child={child} sessionContext={sessionContext} />}
+            {page === "symbols"   && <SymbolBoard child={child} sessionContext={sessionContext} onContextChange={setSessionContext} />}
             {page === "parent"    && <ParentView child={child} sessionContext={sessionContext} onContextChange={setSessionContext} />}
             {page === "sessions"  && <SessionLog child={child} />}
             {page === "research"  && <ResearchPortal child={child} />}
