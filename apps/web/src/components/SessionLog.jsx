@@ -285,7 +285,7 @@ export default function SessionLog({ child }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">History</h1>
-          <p className="page-sub">Confirmed communication moments for {child.name}</p>
+          <p className="page-sub">Parent-confirmed communication moments for {child.name}</p>
         </div>
       </div>
 
@@ -343,8 +343,8 @@ export default function SessionLog({ child }) {
           </div>
         ) : logs.length === 0 ? (
           <div className="empty-history">
-            <p>No sessions yet — Bridge learns from every confirmed interaction.</p>
-            <p className="empty-history-hint">Run a live session and confirm a suggestion to build this timeline.</p>
+            <p>No sessions yet — Bridge refines suggestions based on parent-confirmed interactions.</p>
+            <p className="empty-history-hint">Run a live session and confirm a suggestion to build this timeline. Only what you confirm updates the profile.</p>
             <button
               className="btn-seed-demo"
               onClick={handleSeedDemo}
@@ -419,7 +419,7 @@ export default function SessionLog({ child }) {
         {summaryLoading && !therapistSummary && (
           <div className="agent-running" style={{ marginTop: 12 }}>
             <span className="pulse-dot" />
-            <span>Analyzing {child.name}'s communication logs and building clinical summary...</span>
+            <span>Reviewing {child.name}'s confirmed interactions and building clinical summary for therapist review...</span>
           </div>
         )}
 

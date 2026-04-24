@@ -172,7 +172,7 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">Live Session</h1>
-          <p className="page-sub">Understand, confirm, and speak for {child.name}</p>
+          <p className="page-sub">Review suggestions and speak for {child.name}</p>
         </div>
       </div>
 
@@ -213,8 +213,12 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
       )}
 
       <div className="intent-heading">
-        <h2>Possible meaning</h2>
+        <h2>Possible intents</h2>
         <span className="last-updated">Last updated: {elapsed}s ago</span>
+      </div>
+
+      <div className="profile-update-notice">
+        Bridge suggests possible intents — your confirmation is the required step before anything updates {child.name}&rsquo;s profile.
       </div>
 
       <div className="intent-rows">
@@ -252,17 +256,22 @@ export default function ParentView({ child, sessionContext, onContextChange }) {
                 className="btn-confirm"
                 onClick={() => handleConfirm(intent)}
                 disabled={confirming === intent.label}
+                title="Confirming saves this suggestion to the profile and improves future results"
               >
-                {confirming === intent.label ? "Saving..." : "Confirm"}
+                {confirming === intent.label ? "Saving..." : "Confirm & save to profile"}
               </button>
             </div>
           </div>
         )})}
       </div>
 
-      <p className="safety-note">
-        Bridge suggests possibilities for parent review. It does not diagnose or replace clinical judgment.
-      </p>
+      <div className="safety-banner">
+        <span className="safety-icon">ℹ</span>
+        <p>
+          Bridge suggests possible intents for parent review. It does not diagnose or replace clinical judgment.
+          Parents and therapists remain in control of all decisions.
+        </p>
+      </div>
     </div>
   );
 }

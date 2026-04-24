@@ -46,10 +46,10 @@ async def generate_daily_journal(child_id: str, child_name: str, db) -> str:
                     "role": "user",
                     "content": f"""Write a warm, 2-3 sentence daily journal entry for parents about their child {child_name}'s communication today.
 
-Intent frequency data (what they tried to communicate): {json.dumps(intent_summary)}
-Total interactions: {len(today_logs)}
+Suggested intent frequency data (parent-confirmed communication signals): {json.dumps(intent_summary)}
+Total session moments: {len(today_logs)}
 
-Write as if summarizing their emotional and communicative day. Be warm and specific. Do not mention technical terms.""",
+Write as if summarizing their communicative day. Be warm, child-centered, and dignity-preserving — focus on their communication efforts and strengths. Do not use clinical or diagnostic language. Do not mention AI or technology.""",
                 }
             ],
         )
@@ -102,7 +102,7 @@ async def generate_therapist_summary(child_id: str, child_name: str, db) -> dict
             {"label": label, "count": count}
             for label, count in sorted(confirmed_counts.items(), key=lambda x: -x[1])
         ] if confirmed_counts else [{"label": "No confirmed intents yet", "count": 0}],
-        "repeated_patterns": repeated if repeated else ["No repeated patterns detected yet — continue logging sessions"],
+        "repeated_patterns": repeated if repeated else ["No repeated patterns identified yet — continue logging sessions"],
         "suggested_board_changes": suggested_add if suggested_add else ["Continue current symbol set — more session data needed"],
         "questions_for_session": [
             f"What strategies have been most effective for {child_name}'s communication this week?",
@@ -127,9 +127,9 @@ async def generate_therapist_summary(child_id: str, child_name: str, db) -> dict
                     "content": f"""Generate a structured clinical therapist summary for {child_name}'s AAC communication over the last 7 days.
 
 Session data:
-- Total communication attempts logged: {total_attempts}
+- Total session moments logged: {total_attempts}
 - Parent-confirmed intents (label → count): {json.dumps(confirmed_counts)}
-- Top AI-detected intents (label → frequency): {json.dumps(intent_counts)}
+- Top AI-suggested intents (label → frequency, for context only): {json.dumps(intent_counts)}
 - Repeated patterns (3+ occurrences): {json.dumps(repeated)}
 
 Return a JSON object with exactly these keys:

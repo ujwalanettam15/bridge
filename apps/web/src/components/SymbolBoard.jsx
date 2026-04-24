@@ -217,6 +217,11 @@ export default function SymbolBoard({ child, sessionContext, onContextChange }) 
       </div>
 
       {/* ── More symbols (expandable) ── */}
+      <div className="sb-safety-note">
+        <span className="safety-icon">ℹ</span>
+        Bridge suggests symbols based on context. Parents and therapists stay in control of the board.
+      </div>
+
       <div className="more-symbols">
         <button className="btn-outline more-symbols-toggle" onClick={() => setShowMore(v => !v)}>
           {showMore ? "Hide more symbols" : "More symbols"}
