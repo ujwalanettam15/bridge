@@ -5,7 +5,7 @@ from datetime import datetime
 from app.integrations import vapi, tinyfish, nexla
 from app.models import Child, Session, IntentLog
 from app.core.database import get_db
-from app.agents.journal_agent import generate_daily_journal
+from app.agents.journal_agent import generate_daily_journal, generate_therapist_summary
 from app.ml.symbol_predictor import predict_symbols
 from app.ml.profile_updater import update_profile_from_confirmed_intent
 
@@ -45,6 +45,10 @@ class ConfirmIntentRequest(BaseModel):
     child_id: str
     intent_log_id: str
     confirmed_label: str
+
+
+class TherapistSyncRequest(BaseModel):
+    therapist_webhook: str = ""
 
 
 @router.post("/speak")
@@ -134,6 +138,25 @@ async def get_predicted_symbols(payload: SymbolPredictRequest, db=Depends(get_db
         payload.context,
     )
     return {"symbols": symbols}
+
+
+@router.get("/therapist-summary/{child_id}")
+async def get_therapist_summary(child_id: str, db=Depends(get_db)):
+    child = db.query(Child).filter(Child.id == child_id).first()
+    if not child:
+        raise HTTPException(status_code=404, detail="Child not found")
+    summary = await generate_therapist_summary(child_id, child.name, db)
+    return summary
+
+
+@router.post("/sync-therapist-summary/{child_id}")
+async def sync_therapist_summary(child_id: str, payload: TherapistSyncRequest, db=Depends(get_db)):
+    child = db.query(Child).filter(Child.id == child_id).first()
+    if not child:
+        raise HTTPException(status_code=404, detail="Child not found")
+    summary = await generate_therapist_summary(child_id, child.name, db)
+    result = await nexla.sync_therapist_summary_to_nexla(summary, payload.therapist_webhook)
+    return result
 
 
 @router.post("/confirm-intent")

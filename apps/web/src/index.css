@@ -917,6 +917,10 @@ input, textarea, select { font-family: inherit; }
   margin-bottom: 16px;
 }
 
+.history-summary-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .history-summary > div {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -940,14 +944,45 @@ input, textarea, select { font-family: inherit; }
   display: block;
   font-size: 1.05rem;
   line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-sub {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 2px;
 }
 
 .empty-history {
   color: var(--muted);
   font-size: 0.9rem;
-  line-height: 1.5;
-  padding: 10px 0;
+  line-height: 1.6;
+  padding: 12px 0 4px;
 }
+
+.empty-history p { margin: 0 0 4px; }
+
+.empty-history-hint {
+  font-size: 0.82rem;
+  margin-bottom: 16px !important;
+}
+
+.btn-seed-demo {
+  background: var(--primary-light);
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: var(--primary-dark);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  transition: background 0.15s;
+}
+.btn-seed-demo:hover { background: #dde4ff; }
+.btn-seed-demo:disabled { opacity: 0.6; cursor: default; }
 
 .sessions-card {
   background: var(--surface);
@@ -957,23 +992,58 @@ input, textarea, select { font-family: inherit; }
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
-.session-list { display: flex; flex-direction: column; gap: 0; }
+/* ─── Timeline list ─── */
 
-.session-item {
+.timeline-list {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 14px 0;
+  flex-direction: column;
+  padding-left: 4px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
-.session-item:last-child { border-bottom: none; }
+.timeline-item:last-child { border-bottom: none; }
 
-.session-item-left { min-width: 140px; }
-.session-item-date { font-size: 0.85rem; font-weight: 600; color: var(--text); }
-.session-item-duration { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.timeline-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 4px;
+  min-width: 16px;
+}
 
-.session-item-intents {
-  flex: 1;
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.timeline-body { flex: 1; min-width: 0; }
+
+.timeline-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.timeline-time {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.timeline-ctx {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.timeline-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -991,8 +1061,19 @@ input, textarea, select { font-family: inherit; }
 .intent-chip.top {
   background: var(--primary-light);
   border-color: #c7d2fe;
+  border-left-width: 3px;
   color: var(--primary-dark);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conf-pct {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.73rem;
+  color: var(--muted);
 }
 
 .intent-chip.confirmed {
@@ -1260,6 +1341,307 @@ input, textarea, select { font-family: inherit; }
   border-radius: 8px;
 }
 
+/* ─── Today I Felt Journal ────────────────────────── */
+
+.journal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.journal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.journal-text {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.journal-empty {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ─── Therapist Summary Section ───────────────────── */
+
+.therapist-summary-section {
+  margin-top: 20px;
+}
+
+.therapist-summary-generate-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+
+.btn-generate-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-generate-summary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-generate-summary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.therapist-summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.therapist-summary-header {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #f8fafc;
+}
+
+.therapist-summary-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.therapist-summary-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.therapist-summary-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-ai-badge {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+}
+
+.therapist-summary-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.therapist-summary-body {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.summary-section:last-child { border-bottom: none; }
+
+.summary-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.summary-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-ordered {
+  list-style-type: decimal;
+}
+
+.summary-item {
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.summary-empty {
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.confirmed-intents-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.confirmed-intent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.confirmed-intent-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.confirmed-intent-count {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ─── Therapist Summary Footer / Sync ─────────────── */
+
+.therapist-summary-footer {
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.webhook-row {
+  display: flex;
+  gap: 8px;
+}
+
+.webhook-input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  min-height: 40px;
+  font-family: inherit;
+  background: var(--surface);
+}
+.webhook-input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+.btn-sync-nexla {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-sync-nexla:hover:not(:disabled) { background: #1e293b; }
+.btn-sync-nexla:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ─── Nexla Sync Status ───────────────────────────── */
+
+.nexla-sync-status {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  border: 1px solid;
+}
+.nexla-sync-status.synced  { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+.nexla-sync-status.demo    { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.nexla-sync-status.error   { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+
+.nexla-sync-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.nexla-badge {
+  background: currentColor;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  letter-spacing: 0.05em;
+  opacity: 1;
+  background: #0ea5e9;
+  color: #fff;
+}
+
+.nexla-sync-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.nexla-sync-message {
+  line-height: 1.5;
+  margin: 0;
+}
+
+.nexla-next-steps {
+  margin-top: 8px;
+  font-size: 0.78rem;
+}
+.nexla-next-steps summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.nexla-next-steps ol {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
 @media (max-width: 900px) {
   .app-layout {
     flex-direction: column;
@@ -1282,9 +1664,13 @@ input, textarea, select { font-family: inherit; }
     min-width: 0;
   }
 
-  .research-columns,
-  .history-summary {
+  .research-columns {
     grid-template-columns: 1fr;
+  }
+
+  .history-summary,
+  .history-summary-4 {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .chat-card {

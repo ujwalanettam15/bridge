@@ -73,6 +73,19 @@ export const api = {
 
   getChildLogs: (childId) =>
     fetch(`${BASE}/sessions/child/${childId}/logs`).then(asJson),
+
+  seedDemo: (childId) =>
+    fetch(`${BASE}/sessions/child/${childId}/seed-demo`, { method: "POST" }).then(asJson),
+
+  generateTherapistSummary: (childId) =>
+    fetch(`${BASE}/actions/therapist-summary/${childId}`).then(asJson),
+
+  syncTherapistSummary: (childId, therapistWebhook = "") =>
+    fetch(`${BASE}/actions/sync-therapist-summary/${childId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ therapist_webhook: therapistWebhook }),
+    }).then(asJson),
 };
 
 export { WS_BASE };
